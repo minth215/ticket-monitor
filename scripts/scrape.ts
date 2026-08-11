@@ -371,8 +371,7 @@ async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
     });
 
     if (linkResults.length > 0) {
-      console.log(`  [Debug] Ticketlink ${linkResults.length} link items`);
-      const tickets: TicketInfo[] = linkResults.map((item, i) => ({
+      const linkTickets: TicketInfo[] = linkResults.map((item, i) => ({
         id: `ticketlink-${i}`,
         title: item.title,
         date: item.date,
@@ -380,9 +379,12 @@ async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
         url: item.url,
         imageUrl: item.img || undefined,
       }));
-      const result = postProcess(tickets, "ticketlink");
-      console.log(`[티켓링크] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
-      return result;
+      const linkResult = postProcess(linkTickets, "ticketlink");
+      if (linkResult.length > 0) {
+        console.log(`[티켓링크] ${linkTickets.length}개 추출 → ${linkResult.length}개 (날짜 파싱 후)`);
+        return linkResult;
+      }
+      console.log(`  [Debug] Ticketlink ${linkResults.length} link items → 0 after postProcess, trying text parsing`);
     }
 
     // Strategy 2: Body text parsing (ranking page renders concerts as text)
