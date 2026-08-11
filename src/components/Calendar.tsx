@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TicketInfo, Platform, PLATFORM_LABELS, PLATFORM_COLORS } from "@/lib/types";
+import { generateSampleData } from "@/lib/sample-data";
 import { TicketModal } from "./TicketModal";
 
 const DAYS_OF_WEEK = ["일", "월", "화", "수", "목", "금", "토"];
@@ -18,24 +19,14 @@ export function Calendar() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const fetchTickets = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/tickets?sample=true&year=${year}&month=${month + 1}`
-      );
-      const data = await res.json();
-      setTickets(data.tickets);
-    } catch (e) {
-      console.error("Failed to fetch tickets:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [year, month]);
+  const allTickets = useMemo(() => generateSampleData(), []);
 
   useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+    const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const filtered = allTickets.filter((t) => t.date.startsWith(prefix));
+    setTickets(filtered);
+    setLoading(false);
+  }, [year, month, allTickets]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
