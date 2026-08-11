@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { TicketInfo, Platform, PLATFORM_LABELS, PLATFORM_COLORS } from "@/lib/types";
-import { generateSampleData } from "@/lib/sample-data";
 import { TicketModal } from "./TicketModal";
 
 const DAYS_OF_WEEK = ["일", "월", "화", "수", "목", "금", "토"];
@@ -12,10 +11,10 @@ export function Calendar() {
   const [tickets, setTickets] = useState<TicketInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<"live" | "sample">("sample");
+  const [empty, setEmpty] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<Platform>>(
-    new Set(["melon", "yes24", "interpark", "nol"])
+    new Set(["melon", "yes24", "interpark", "nol", "ticketlink"])
   );
 
   const allTicketsRef = useRef<TicketInfo[]>([]);
@@ -32,17 +31,15 @@ export function Calendar() {
         const res = await fetch(`${basePath}/tickets.json`);
         if (!res.ok) throw new Error("No scraped data");
         const data = await res.json();
-        if (!cancelled && data.tickets?.length > 0) {
-          allTicketsRef.current = data.tickets;
+        if (!cancelled) {
+          allTicketsRef.current = data.tickets || [];
           setLastUpdated(data.lastUpdated || null);
-          setDataSource("live");
-        } else {
-          throw new Error("Empty data");
+          setEmpty(allTicketsRef.current.length === 0);
         }
       } catch {
         if (!cancelled) {
-          allTicketsRef.current = generateSampleData();
-          setDataSource("sample");
+          allTicketsRef.current = [];
+          setEmpty(true);
         }
       }
       if (!cancelled) {
@@ -314,10 +311,10 @@ export function Calendar() {
 
       {/* Legend */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400">
-        {dataSource === "sample" ? (
-          <span>* 샘플 데이터가 표시됩니다. 스크래핑 데이터가 준비되면 자동으로 전환됩니다.</span>
+        {empty ? (
+          <span>* 스크래핑 데이터가 아직 없습니다. GitHub Actions 배포 후 데이터가 표시됩니다.</span>
         ) : (
-          <span>* 멜론티켓, Yes24, 인터파크, 놀 티켓에서 수집된 실제 데이터입니다.</span>
+          <span>* 멜론티켓, Yes24, 인터파크, 놀 티켓, 티켓링크에서 수집된 데이터입니다.</span>
         )}
         {lastUpdated && (
           <span>

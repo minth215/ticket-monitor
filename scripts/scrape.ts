@@ -8,7 +8,7 @@ interface TicketInfo {
   date: string;
   time?: string;
   venue?: string;
-  platform: "melon" | "yes24" | "interpark" | "nol";
+  platform: "melon" | "yes24" | "interpark" | "nol" | "ticketlink";
   url: string;
   imageUrl?: string;
   openDate?: string;
@@ -21,7 +21,6 @@ const UA =
 function parseKoreanDate(text: string): string[] {
   const dates: string[] = [];
 
-  // "2026.08.15" or "2026-08-15" or "2026/08/15"
   const single = text.match(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/g);
   if (single) {
     for (const m of single) {
@@ -32,7 +31,6 @@ function parseKoreanDate(text: string): string[] {
     }
   }
 
-  // "2026.08.15 ~ 2026.08.17" → just use start date
   if (dates.length >= 2) {
     return [dates[0]];
   }
@@ -77,7 +75,6 @@ async function scrapeMelon(): Promise<TicketInfo[]> {
 
     const $ = cheerio.load(html);
 
-    // 멜론티켓 리스트 구조
     $(".list_thumb li, .thumb_list li, .list_ticket li").each((_i, el) => {
       const $el = $(el);
       const title =
@@ -100,10 +97,7 @@ async function scrapeMelon(): Promise<TicketInfo[]> {
       const img = $el.find("img").first().attr("src") || "";
 
       const dates = parseKoreanDate(dateText);
-      if (dates.length === 0) dates.push("");
-
       for (const date of dates) {
-        if (!date) continue;
         tickets.push({
           id: `melon-${tickets.length}`,
           title: title.replace(/\s+/g, " "),
@@ -126,7 +120,6 @@ async function scrapeYes24(): Promise<TicketInfo[]> {
   console.log("[Yes24] 스크래핑 시작...");
   const tickets: TicketInfo[] = [];
 
-  // Yes24 콘서트 장르 페이지
   const urls = [
     "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456",
     "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15457",
@@ -138,7 +131,6 @@ async function scrapeYes24(): Promise<TicketInfo[]> {
 
     const $ = cheerio.load(html);
 
-    // Yes24 리스트 구조
     $(
       ".genre-list li, .list-grid li, .content-area li, .rn-genre-list li"
     ).each((_i, el) => {
@@ -174,10 +166,7 @@ async function scrapeYes24(): Promise<TicketInfo[]> {
       const img = $el.find("img").first().attr("src") || "";
 
       const dates = parseKoreanDate(dateText);
-      if (dates.length === 0) dates.push("");
-
       for (const date of dates) {
-        if (!date) continue;
         tickets.push({
           id: `yes24-${tickets.length}`,
           title: title.replace(/\s+/g, " "),
@@ -204,7 +193,6 @@ async function scrapeInterpark(): Promise<TicketInfo[]> {
   console.log("[인터파크] 스크래핑 시작...");
   const tickets: TicketInfo[] = [];
 
-  // 인터파크 콘서트 랭킹/리스트 API
   const apiUrls = [
     "https://tickets.interpark.com/contents/api/goods/genre?genre=concert&page=1&size=20&sort=popular",
     "https://tickets.interpark.com/contents/api/goods/genre?genre=concert&page=1&size=20&sort=recent",
@@ -236,7 +224,6 @@ async function scrapeInterpark(): Promise<TicketInfo[]> {
           const startDate = item.playStartDate || item.startDate || item.date || "";
           const dates = parseKoreanDate(startDate);
           if (dates.length === 0 && startDate) {
-            // ISO format "2026-08-15T00:00:00"
             const isoMatch = startDate.match(/^(\d{4}-\d{2}-\d{2})/);
             if (isoMatch) dates.push(isoMatch[1]);
           }
@@ -262,7 +249,6 @@ async function scrapeInterpark(): Promise<TicketInfo[]> {
       // API 실패 시 HTML 파싱으로 폴백
     }
 
-    // HTML 폴백
     const html = await fetchWithRetry(
       "https://tickets.interpark.com/contents/genre/concert"
     );
@@ -313,7 +299,6 @@ async function scrapeNol(): Promise<TicketInfo[]> {
     "https://ticket.nol.auction.co.kr/Category/ConcertList.aspx"
   );
   if (!html) {
-    // 대체 URL 시도
     const html2 = await fetchWithRetry(
       "https://nol.auction.co.kr/concert/list.do"
     );
@@ -391,6 +376,161 @@ async function scrapeNol(): Promise<TicketInfo[]> {
   return tickets;
 }
 
+// ─── 티켓링크 ───────────────────────────────────────────
+async function scrapeTicketlink(): Promise<TicketInfo[]> {
+  console.log("[티켓링크] 스크래핑 시작...");
+  const tickets: TicketInfo[] = [];
+
+  // 티켓링크 API 시도
+  const apiUrls = [
+    "https://www.ticketlink.co.kr/api/product/list?categoryId=1&subCategoryId=1&page=1&size=20&sort=popular",
+    "https://www.ticketlink.co.kr/api/product/list?categoryId=1&subCategoryId=1&page=1&size=20&sort=recent",
+  ];
+
+  for (const apiUrl of apiUrls) {
+    try {
+      const res = await fetch(apiUrl, {
+        headers: {
+          "User-Agent": UA,
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const items =
+          json?.data?.content ||
+          json?.data?.list ||
+          json?.result?.content ||
+          json?.result?.list ||
+          json?.items ||
+          json?.list ||
+          [];
+
+        for (const item of items) {
+          const title =
+            item.productName || item.name || item.title || item.goodsName;
+          if (!title) continue;
+
+          const productId =
+            item.productId || item.id || item.productNo || item.code || "";
+          const url = productId
+            ? `https://www.ticketlink.co.kr/product/${productId}`
+            : "https://www.ticketlink.co.kr";
+
+          const startDate =
+            item.playStartDate ||
+            item.startDate ||
+            item.openDate ||
+            item.date ||
+            "";
+          const dates = parseKoreanDate(startDate);
+          if (dates.length === 0 && startDate) {
+            const isoMatch = startDate.match(/^(\d{4}-\d{2}-\d{2})/);
+            if (isoMatch) dates.push(isoMatch[1]);
+          }
+
+          const venue =
+            item.placeName || item.venueName || item.venue || item.place || "";
+          const img =
+            item.posterUrl ||
+            item.imageUrl ||
+            item.posterImageUrl ||
+            item.poster ||
+            "";
+
+          for (const date of dates) {
+            tickets.push({
+              id: `ticketlink-${tickets.length}`,
+              title: title.replace(/\s+/g, " "),
+              date,
+              venue: venue || undefined,
+              platform: "ticketlink",
+              url,
+              imageUrl: img || undefined,
+            });
+          }
+        }
+
+        if (tickets.length > 0) {
+          console.log(`[티켓링크] ${tickets.length}개 수집 (API)`);
+          return tickets;
+        }
+      }
+    } catch {
+      // API 실패 시 HTML 파싱으로 폴백
+    }
+  }
+
+  // HTML 폴백 - 콘서트 카테고리 페이지
+  const htmlUrls = [
+    "https://www.ticketlink.co.kr/performance/concert",
+    "https://www.ticketlink.co.kr/performance/concert?page=1",
+  ];
+
+  for (const pageUrl of htmlUrls) {
+    const html = await fetchWithRetry(pageUrl);
+    if (!html) continue;
+
+    const $ = cheerio.load(html);
+
+    $(
+      ".product_list li, .performance_list li, .list_item li, .event_list li, .ranking_list li"
+    ).each((_i, el) => {
+      const $el = $(el);
+      const title =
+        $el.find(".prd_name, .tit, .product_name, .event_name, .name").first().text().trim() ||
+        $el.find("a").first().attr("title")?.trim() ||
+        $el.find("a img").attr("alt")?.trim();
+      if (!title) return;
+
+      const href = $el.find("a").first().attr("href") || "";
+      const url = href.startsWith("http")
+        ? href
+        : href
+          ? `https://www.ticketlink.co.kr${href}`
+          : "https://www.ticketlink.co.kr";
+
+      const dateText =
+        $el
+          .find(".prd_date, .date, .period, .show_date, .event_date")
+          .first()
+          .text()
+          .trim() || "";
+      const venue =
+        $el
+          .find(".prd_place, .place, .venue, .show_place, .event_place")
+          .first()
+          .text()
+          .trim() || "";
+      const img = $el.find("img").first().attr("src") || "";
+
+      const dates = parseKoreanDate(dateText);
+      for (const date of dates) {
+        tickets.push({
+          id: `ticketlink-${tickets.length}`,
+          title: title.replace(/\s+/g, " "),
+          date,
+          venue: venue || undefined,
+          platform: "ticketlink",
+          url,
+          imageUrl: img
+            ? img.startsWith("http")
+              ? img
+              : `https://www.ticketlink.co.kr${img}`
+            : undefined,
+        });
+      }
+    });
+
+    if (tickets.length > 0) break;
+  }
+
+  console.log(`[티켓링크] ${tickets.length}개 수집`);
+  return tickets;
+}
+
 // ─── 메인 ───────────────────────────────────────────────
 async function main() {
   console.log("=== 콘서트 티켓 스크래핑 시작 ===\n");
@@ -400,10 +540,11 @@ async function main() {
     scrapeYes24(),
     scrapeInterpark(),
     scrapeNol(),
+    scrapeTicketlink(),
   ]);
 
   const allTickets: TicketInfo[] = [];
-  const platformNames = ["멜론티켓", "Yes24", "인터파크", "놀 티켓"];
+  const platformNames = ["멜론티켓", "Yes24", "인터파크", "놀 티켓", "티켓링크"];
 
   results.forEach((result, i) => {
     if (result.status === "fulfilled") {
@@ -413,7 +554,6 @@ async function main() {
     }
   });
 
-  // 중복 제거 (같은 플랫폼, 같은 제목, 같은 날짜)
   const seen = new Set<string>();
   const unique = allTickets.filter((t) => {
     const key = `${t.platform}-${t.title}-${t.date}`;
@@ -422,7 +562,6 @@ async function main() {
     return true;
   });
 
-  // 날짜순 정렬
   unique.sort((a, b) => a.date.localeCompare(b.date));
 
   const outDir = path.join(process.cwd(), "public");
