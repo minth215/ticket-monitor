@@ -334,13 +334,20 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     }
 
     // This first load is only used to read the gnb menu (fired on every page load).
-    // Wait for that specific response instead of guessing a fixed delay.
+    // Wait for that specific response and read its body directly — waitForResponse
+    // resolves once headers arrive, before the async page.on("response") listener
+    // above has necessarily finished downloading+parsing the (large) body, so relying
+    // on a fixed buffer after it resolved was racy. Fetch the body ourselves instead.
     try {
-      await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 15000 });
-    } catch {
-      console.log(`  [Debug] Ticketlink gnb response did not arrive within 15s`);
+      const gnbResponse = await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 15000 });
+      const gnbData = await gnbResponse.json();
+      if (!apiResponses.some((r) => r.url === gnbResponse.url())) {
+        apiResponses.push({ url: gnbResponse.url(), data: gnbData });
+      }
+    } catch (e) {
+      console.log(`  [Debug] Ticketlink gnb response did not arrive/parse:`, (e as Error).message);
     }
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     console.log(`  [Debug] Ticketlink captured ${apiResponses.length} JSON API responses`);
     const seenUrls = new Set<string>();
