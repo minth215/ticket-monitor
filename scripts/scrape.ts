@@ -333,14 +333,13 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
       return [];
     }
 
-    // This first load is only used to read the gnb menu (fired on every page load).
-    // Wait for that response's headers, then poll for the page.on("response") listener
-    // above to finish parsing its body into apiResponses — reading response.json() a
-    // second time here (on the same underlying response) raced the listener's own read
-    // and intermittently threw "No resource with given identifier found" via CDP.
+    // gnb fires on every page load. It's used only to verify we're on the right genre
+    // page (categoryId 16 once turned out to be "뮤지컬"/Musical, not Concert, when guessed)
+    // and to re-navigate if the site's routing ever changes again — not required for the
+    // main flow, so keep this bounded and non-fatal instead of blocking heavily on it.
     try {
-      await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 15000 });
-      for (let i = 0; i < 20 && !apiResponses.some((r) => r.url.includes("/gnb")); i++) {
+      await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 8000 });
+      for (let i = 0; i < 12 && !apiResponses.some((r) => r.url.includes("/gnb")); i++) {
         await page.waitForTimeout(250);
       }
     } catch (e) {
@@ -356,9 +355,9 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
       console.log(`  [Debug] Ticketlink API: ${resp.url.substring(0, 100)} → ${dataStr}`);
     }
 
-    // The gnb response contains the real site menu tree (categoryId 16 turned out to be
-    // "뮤지컬"/Musical, not Concert). Find the actual "콘서트" leaf category and read its
-    // page URL from the link info, then navigate there directly instead of guessing IDs.
+    // The gnb response contains the real site menu tree. Find the actual "콘서트" leaf
+    // category and read its page URL — re-navigate only if we're not already there,
+    // since targetUrl is normally already the confirmed concert page.
     const gnbResp = apiResponses.find((r) => r.url.includes("/gnb"));
     if (gnbResp) {
       const concertCategory = findCategoryByName(gnbResp.data, "콘서트");
@@ -367,32 +366,30 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
       const concertPath = pcLink?.url as string | undefined;
       console.log(`  [Debug] Ticketlink gnb concert category found: ${!!concertCategory}, path: ${concertPath}`);
 
-      if (concertPath) {
+      if (concertPath && !targetUrl.endsWith(concertPath)) {
         const concertUrl = concertPath.startsWith("http") ? concertPath : `https://www.ticketlink.co.kr${concertPath}`;
-        if (concertUrl !== targetUrl) {
-          console.log(`  [Debug] Ticketlink navigating to actual concert page: ${concertUrl}`);
-          try {
-            await page.goto(concertUrl, { waitUntil: "commit", timeout: 30000 });
-            await page.waitForTimeout(3000);
-            // The ranking/listing widget appears to lazy-load on scroll — nudge it into view
-            for (let i = 0; i < 5; i++) {
-              await page.mouse.wheel(0, 1000).catch(() => {});
-              await page.waitForTimeout(1500);
-            }
-            console.log(`  [Debug] Ticketlink now captured ${apiResponses.length} total JSON API responses`);
-            for (const resp of apiResponses) {
-              if (seenUrls.has(resp.url)) continue;
-              seenUrls.add(resp.url);
-              const dataStr = JSON.stringify(resp.data).substring(0, 300);
-              console.log(`  [Debug] Ticketlink API (post-nav): ${resp.url.substring(0, 100)} → ${dataStr}`);
-            }
-          } catch (e) {
-            console.log(`  [Debug] Ticketlink concert page nav failed:`, (e as Error).message);
-          }
+        console.log(`  [Debug] Ticketlink navigating to actual concert page: ${concertUrl}`);
+        try {
+          await page.goto(concertUrl, { waitUntil: "commit", timeout: 15000 });
+        } catch (e) {
+          console.log(`  [Debug] Ticketlink concert page nav failed:`, (e as Error).message);
         }
-      } else {
-        console.log(`  [Debug] Ticketlink gnb full dump: ${JSON.stringify(gnbResp.data).substring(0, 5000)}`);
       }
+    }
+
+    // The ranking/listing widget lazy-loads on scroll — nudge it into view regardless of
+    // whether we re-navigated above or were already on the right page.
+    await page.waitForTimeout(1500);
+    for (let i = 0; i < 4; i++) {
+      await page.mouse.wheel(0, 1000).catch(() => {});
+      await page.waitForTimeout(1200);
+    }
+    console.log(`  [Debug] Ticketlink captured ${apiResponses.length} total JSON API responses after scroll`);
+    for (const resp of apiResponses) {
+      if (seenUrls.has(resp.url)) continue;
+      seenUrls.add(resp.url);
+      const dataStr = JSON.stringify(resp.data).substring(0, 300);
+      console.log(`  [Debug] Ticketlink API (post-scroll): ${resp.url.substring(0, 100)} → ${dataStr}`);
     }
 
     // Look for concert listing data in API responses
@@ -593,15 +590,10 @@ function parseTicketlinkText(bodyText: string, targetUrl: string): TicketInfo[] 
 async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
   console.log("[티켓링크] 스크래핑 시작...");
 
-  const candidateUrls = [
-    "https://www.ticketlink.co.kr/performance/16",
-    "https://www.ticketlink.co.kr/performance/14",
-  ];
-
-  for (const targetUrl of candidateUrls) {
-    const result = await scrapeTicketlinkPage(browser, targetUrl);
-    if (result.length > 0) return result;
-  }
+  // /performance/14 is the confirmed "콘서트" (Concert) genre page — verified via the
+  // site's own gnb menu data. Go straight there instead of guessing IDs and re-navigating.
+  const result = await scrapeTicketlinkPage(browser, "https://www.ticketlink.co.kr/performance/14");
+  if (result.length > 0) return result;
 
   console.log(`[티켓링크] 0개 추출`);
   return [];
