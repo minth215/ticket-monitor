@@ -339,41 +339,41 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     for (const resp of apiResponses) {
       if (seenUrls.has(resp.url)) continue;
       seenUrls.add(resp.url);
-      // Log gnb (category nav) fully to discover the codeName used for the concert genre
-      const isGnb = resp.url.includes("/gnb");
-      const dataStr = JSON.stringify(resp.data).substring(0, isGnb ? 3000 : 200);
+      const dataStr = JSON.stringify(resp.data).substring(0, 200);
       console.log(`  [Debug] Ticketlink API: ${resp.url.substring(0, 100)} → ${dataStr}`);
     }
 
-    // Try to discover the concert category code from the gnb response and query
-    // the category listing API directly, bypassing SPA routing entirely
+    // The gnb response contains the real site menu tree (categoryId 16 turned out to be
+    // "뮤지컬"/Musical, not Concert). Find the actual "콘서트" leaf category and read its
+    // page URL from the link info, then navigate there directly instead of guessing IDs.
     const gnbResp = apiResponses.find((r) => r.url.includes("/gnb"));
     if (gnbResp) {
-      const gnbArrays = findArraysInObject(gnbResp.data);
-      const codeCandidates: string[] = [];
-      for (const arr of gnbArrays) {
-        for (const item of arr) {
-          if (typeof item !== "object" || !item) continue;
-          const obj = item as Record<string, unknown>;
-          const nameVal = String(findField(obj, ["categoryNameKor", "name", "categoryName"]) || "");
-          if (/콘서트|공연|Concert/i.test(nameVal)) {
-            const code = findField(obj, ["codeName", "categoryCode", "code", "categoryId"]);
-            if (code !== null && code !== undefined) codeCandidates.push(String(code));
+      const concertCategory = findCategoryByName(gnbResp.data, "콘서트");
+      const linkInfo = concertCategory?.generalPageLinkInfo as Record<string, unknown> | undefined;
+      const pcLink = linkInfo?.pcCategoryLinkInfo as Record<string, unknown> | undefined;
+      const concertPath = pcLink?.url as string | undefined;
+      console.log(`  [Debug] Ticketlink gnb concert category found: ${!!concertCategory}, path: ${concertPath}`);
+
+      if (concertPath) {
+        const concertUrl = concertPath.startsWith("http") ? concertPath : `https://www.ticketlink.co.kr${concertPath}`;
+        if (concertUrl !== targetUrl) {
+          console.log(`  [Debug] Ticketlink navigating to actual concert page: ${concertUrl}`);
+          try {
+            await page.goto(concertUrl, { waitUntil: "commit", timeout: 30000 });
+            await page.waitForTimeout(10000);
+            console.log(`  [Debug] Ticketlink now captured ${apiResponses.length} total JSON API responses`);
+            for (const resp of apiResponses) {
+              if (seenUrls.has(resp.url)) continue;
+              seenUrls.add(resp.url);
+              const dataStr = JSON.stringify(resp.data).substring(0, 300);
+              console.log(`  [Debug] Ticketlink API (post-nav): ${resp.url.substring(0, 100)} → ${dataStr}`);
+            }
+          } catch (e) {
+            console.log(`  [Debug] Ticketlink concert page nav failed:`, (e as Error).message);
           }
         }
-      }
-      console.log(`  [Debug] Ticketlink discovered category codes:`, codeCandidates);
-      for (const code of codeCandidates.slice(0, 3)) {
-        try {
-          const apiUrl = `https://mapi.ticketlink.co.kr/mapi/webMain/category?codeName=${encodeURIComponent(code)}`;
-          const directResp = await page.request.get(apiUrl);
-          const directData = await directResp.json();
-          const dataStr = JSON.stringify(directData).substring(0, 500);
-          console.log(`  [Debug] Ticketlink direct category query (${code}) → ${dataStr}`);
-          apiResponses.push({ url: apiUrl, data: directData });
-        } catch (e) {
-          console.log(`  [Debug] Ticketlink direct category query (${code}) failed:`, (e as Error).message);
-        }
+      } else {
+        console.log(`  [Debug] Ticketlink gnb full dump: ${JSON.stringify(gnbResp.data).substring(0, 5000)}`);
       }
     }
 
@@ -486,10 +486,13 @@ function findField(obj: Record<string, unknown>, candidates: string[]): unknown 
 }
 
 function findArraysInObject(obj: unknown, depth = 0): unknown[][] {
-  if (depth > 5) return [];
+  if (depth > 8) return [];
   const results: unknown[][] = [];
   if (Array.isArray(obj)) {
     if (obj.length > 0 && typeof obj[0] === "object") results.push(obj);
+    for (const item of obj) {
+      results.push(...findArraysInObject(item, depth + 1));
+    }
     return results;
   }
   if (typeof obj === "object" && obj !== null) {
@@ -498,6 +501,26 @@ function findArraysInObject(obj: unknown, depth = 0): unknown[][] {
     }
   }
   return results;
+}
+
+// Recursively search nested category objects (gnb tree) for an exact Korean name match,
+// returning the object itself so its link-info fields can be read.
+function findCategoryByName(obj: unknown, name: string, depth = 0): Record<string, unknown> | null {
+  if (depth > 8 || obj === null || typeof obj !== "object") return null;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findCategoryByName(item, name, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  const rec = obj as Record<string, unknown>;
+  if (rec.categoryNameKor === name) return rec;
+  for (const val of Object.values(rec)) {
+    const found = findCategoryByName(val, name, depth + 1);
+    if (found) return found;
+  }
+  return null;
 }
 
 function parseTicketlinkText(bodyText: string, targetUrl: string): TicketInfo[] {
