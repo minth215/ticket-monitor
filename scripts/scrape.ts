@@ -51,108 +51,94 @@ async function withPage(
 // ─── 멜론티켓 ───────────────────────────────────────────
 async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
   console.log("[멜론티켓] 스크래핑 시작...");
-  const tickets = await withPage(
-    browser,
-    "https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON",
-    async (page) => {
-      await page.waitForTimeout(5000);
 
-      const items = await page.evaluate(() => {
-        const results: TicketInfo[] = [];
+  const page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
-        const selectorGroups = [
-          "#conts .list_thumb li",
-          "#conts .thumb_list li",
-          ".list_item li",
-          ".festival_list li",
-          "#commodityList li",
-          ".wrap_list li",
-          ".conts_section li",
-        ];
+  try {
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "ko-KR,ko;q=0.9",
+    });
 
-        let elements: Element[] = [];
-        for (const sel of selectorGroups) {
-          const found = document.querySelectorAll(sel);
-          if (found.length > 0) {
-            elements = Array.from(found);
-            break;
-          }
-        }
+    await page.goto(
+      "https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON",
+      { waitUntil: "domcontentloaded", timeout: 30000 }
+    );
 
-        if (elements.length === 0) {
-          elements = Array.from(document.querySelectorAll("li")).filter(
-            (el) => {
-              const text = el.textContent || "";
-              return (
-                text.length > 10 &&
-                text.length < 500 &&
-                /\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(text)
-              );
-            }
-          );
-        }
+    try {
+      await page.waitForSelector("li, .list_item, .thumb_list", { timeout: 10000 });
+    } catch {
+      // page might not have any matching selectors
+    }
+    await page.waitForTimeout(3000);
 
-        elements.forEach((el, i) => {
-          const anchor = el.querySelector("a");
+    const items = await page.evaluate(() => {
+      const results: TicketInfo[] = [];
+      const allText = document.body?.innerText || "";
+
+      // Try to find concert items by looking for links to detail pages
+      const links = Array.from(document.querySelectorAll("a")).filter((a) => {
+        const href = a.getAttribute("href") || "";
+        return (
+          href.includes("prodId=") ||
+          href.includes("performance") ||
+          href.includes("detail") ||
+          href.includes("product")
+        );
+      });
+
+      if (links.length > 0) {
+        links.forEach((a, i) => {
+          const container = a.closest("li, div, [class*=item]") || a.parentElement || a;
           const title =
-            el
-              .querySelector(
-                "[class*=ellipsis], [class*=tit], [class*=name], .tit, .name, strong, h3, h4"
-              )
-              ?.textContent?.trim() ||
-            anchor?.getAttribute("title")?.trim() ||
-            anchor?.textContent?.trim() ||
-            el.querySelector("img")?.getAttribute("alt")?.trim();
-          if (!title || title.length < 2) return;
+            container.querySelector("[class*=tit], [class*=name], strong, h3, h4")?.textContent?.trim() ||
+            a.getAttribute("title")?.trim() ||
+            a.textContent?.trim() ||
+            container.querySelector("img")?.getAttribute("alt")?.trim();
+          if (!title || title.length < 2 || title.length > 200) return;
 
-          const href = anchor?.getAttribute("href") || "";
+          const href = a.getAttribute("href") || "";
           const url = href.startsWith("http")
             ? href
-            : href
-              ? `https://ticket.melon.com${href}`
-              : "https://ticket.melon.com";
+            : `https://ticket.melon.com${href}`;
 
-          const dateText = el.textContent || "";
-          const venueEl = el.querySelector(
-            "[class*=place], [class*=venue], [class*=hall], .place, .venue"
-          );
-          const venue = venueEl?.textContent?.trim() || "";
-          const img = el.querySelector("img")?.getAttribute("src") || "";
+          const dateText = container.textContent || "";
+          const img = container.querySelector("img")?.getAttribute("src") || "";
 
           results.push({
             id: `melon-${i}`,
-            title: title.replace(/\s+/g, " ").substring(0, 200),
+            title: title.replace(/\s+/g, " "),
             date: dateText,
-            venue: venue || undefined,
             platform: "melon" as const,
             url,
             imageUrl: img || undefined,
           });
         });
-
-        return results;
-      });
-
-      if (items.length === 0) {
-        const debug = await page.evaluate(() => {
-          const allLi = document.querySelectorAll("li");
-          const bodyText = document.body?.innerText?.substring(0, 500) || "";
-          return {
-            liCount: allLi.length,
-            bodySnippet: bodyText,
-            title: document.title,
-          };
-        });
-        console.log("  [Debug] Melon page:", JSON.stringify(debug));
       }
 
-      return items;
-    }
-  );
+      return results;
+    });
 
-  const result = postProcess(tickets, "melon");
-  console.log(`[멜론티켓] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
-  return result;
+    if (items.length === 0) {
+      const debug = await page.evaluate(() => ({
+        liCount: document.querySelectorAll("li").length,
+        aCount: document.querySelectorAll("a").length,
+        bodyLen: document.body?.innerText?.length || 0,
+        bodySnippet: document.body?.innerText?.substring(0, 300) || "",
+        title: document.title,
+      }));
+      console.log("  [Debug] Melon:", JSON.stringify(debug));
+    }
+
+    const result = postProcess(items, "melon");
+    console.log(`[멜론티켓] ${items.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
+    return result;
+  } catch (e) {
+    console.warn("  [멜론티켓] error:", (e as Error).message);
+    return [];
+  } finally {
+    await page.close();
+  }
 }
 
 // ─── Yes24 ──────────────────────────────────────────────
@@ -167,74 +153,68 @@ async function scrapeYes24(browser: Browser): Promise<TicketInfo[]> {
       const items = await page.evaluate(() => {
         const results: TicketInfo[] = [];
 
-        const selectorGroups = [
-          ".genre-list li",
-          ".gen-ticket-list li",
-          ".content-area li",
-          "#genreList li",
-          ".board-list li",
-        ];
-
-        let elements: Element[] = [];
-        for (const sel of selectorGroups) {
-          const found = document.querySelectorAll(sel);
-          if (found.length > 0) {
-            elements = Array.from(found);
-            break;
-          }
-        }
-
-        if (elements.length === 0) {
-          elements = Array.from(document.querySelectorAll("li")).filter(
-            (el) => {
-              const text = el.textContent || "";
-              return (
-                text.length > 10 &&
-                text.length < 500 &&
-                /\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(text)
-              );
-            }
+        // Yes24 concert listing: look for links pointing to detail pages
+        const detailLinks = Array.from(document.querySelectorAll("a")).filter((a) => {
+          const href = a.getAttribute("href") || a.href || "";
+          return (
+            href.includes("/Perf/") ||
+            href.includes("PerfCode=") ||
+            href.includes("/New/Perf/") ||
+            (href.includes("yes24") && /\d{5,}/.test(href))
           );
-        }
+        });
 
-        elements.forEach((el, i) => {
-          const anchor = el.querySelector("a");
+        // Deduplicate by href
+        const seen = new Set<string>();
+        const uniqueLinks = detailLinks.filter((a) => {
+          const href = a.getAttribute("href") || a.href || "";
+          if (seen.has(href)) return false;
+          seen.add(href);
+          return true;
+        });
+
+        uniqueLinks.forEach((a, i) => {
+          // Walk up to find the item container
+          let container: Element = a;
+          for (let p = a.parentElement; p && p !== document.body; p = p.parentElement) {
+            if (
+              p.tagName === "LI" ||
+              p.tagName === "TR" ||
+              p.className?.includes("item") ||
+              p.className?.includes("content") ||
+              p.className?.includes("gen-")
+            ) {
+              container = p;
+              break;
+            }
+            // Stop at reasonable boundary
+            if ((p.textContent?.length || 0) > 1000) break;
+            container = p;
+          }
+
           const title =
-            el
-              .querySelector(
-                "[class*=title], [class*=tit], [class*=name], .tit, .name, strong, h3, h4"
-              )
-              ?.textContent?.trim() ||
-            anchor?.getAttribute("title")?.trim() ||
-            anchor?.textContent?.trim() ||
-            el.querySelector("img")?.getAttribute("alt")?.trim();
-          if (!title || title.length < 2) return;
+            a.querySelector("strong, [class*=tit], [class*=name]")?.textContent?.trim() ||
+            a.getAttribute("title")?.trim() ||
+            a.textContent?.trim() ||
+            container.querySelector("img")?.getAttribute("alt")?.trim();
+          if (!title || title.length < 2 || title.length > 300) return;
 
-          const href = anchor?.getAttribute("href") || "";
+          const href = a.getAttribute("href") || a.href || "";
           const url = href.startsWith("http")
             ? href
-            : href
-              ? `https://ticket.yes24.com${href}`
-              : "https://ticket.yes24.com";
+            : `https://ticket.yes24.com${href}`;
 
-          const dateText = el.textContent || "";
-          const venueEl = el.querySelector(
-            "[class*=place], [class*=venue], [class*=hall], .place, .venue"
-          );
-          const venue = venueEl?.textContent?.trim() || "";
-          const img = el.querySelector("img")?.getAttribute("src") || "";
+          const containerText = container.textContent || "";
+          const img = container.querySelector("img")?.getAttribute("src") || "";
 
           results.push({
             id: `yes24-${i}`,
             title: title.replace(/\s+/g, " ").substring(0, 200),
-            date: dateText,
-            venue: venue || undefined,
+            date: containerText,
             platform: "yes24" as const,
             url,
             imageUrl: img
-              ? img.startsWith("http")
-                ? img
-                : `https://ticket.yes24.com${img}`
+              ? img.startsWith("http") ? img : `https://ticket.yes24.com${img}`
               : undefined,
           });
         });
@@ -244,15 +224,22 @@ async function scrapeYes24(browser: Browser): Promise<TicketInfo[]> {
 
       if (items.length === 0) {
         const debug = await page.evaluate(() => {
-          const allLi = document.querySelectorAll("li");
-          const bodyText = document.body?.innerText?.substring(0, 500) || "";
+          const allA = document.querySelectorAll("a");
+          const perfLinks = Array.from(allA)
+            .filter((a) => (a.href || "").length > 30)
+            .slice(0, 10)
+            .map((a) => ({
+              href: a.getAttribute("href") || a.href,
+              text: a.textContent?.trim()?.substring(0, 50),
+            }));
           return {
-            liCount: allLi.length,
-            bodySnippet: bodyText,
+            aCount: allA.length,
+            perfLinks,
+            bodySnippet: document.body?.innerText?.substring(0, 500) || "",
             title: document.title,
           };
         });
-        console.log("  [Debug] Yes24 page:", JSON.stringify(debug));
+        console.log("  [Debug] Yes24:", JSON.stringify(debug));
       }
 
       return items;
@@ -273,75 +260,65 @@ async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
     async (page) => {
       await page.waitForTimeout(8000);
 
-      // Scroll to trigger lazy loading
-      await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight / 2);
-      });
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
       await page.waitForTimeout(2000);
 
       const items = await page.evaluate(() => {
         const results: TicketInfo[] = [];
 
-        const selectorGroups = [
-          "[class*=RankingItem] a",
-          "[class*=ProductItem] a",
-          "[class*=prd-item] a",
-          "[class*=card-item] a",
-          "[class*=ranking] li a",
-          "[class*=content] li a",
-        ];
+        // Find links to product/goods pages
+        const productLinks = Array.from(document.querySelectorAll("a")).filter((a) => {
+          const href = a.getAttribute("href") || a.href || "";
+          return (
+            href.includes("/product/") ||
+            href.includes("/goods/") ||
+            href.includes("GoodsCode=")
+          );
+        });
 
-        let anchors: Element[] = [];
-        for (const sel of selectorGroups) {
-          const found = document.querySelectorAll(sel);
-          if (found.length > 0) {
-            anchors = Array.from(found);
-            break;
+        const seen = new Set<string>();
+        const uniqueLinks = productLinks.filter((a) => {
+          const href = a.getAttribute("href") || a.href || "";
+          if (seen.has(href)) return false;
+          seen.add(href);
+          return true;
+        });
+
+        uniqueLinks.forEach((a, i) => {
+          let container: Element = a;
+          for (let p = a.parentElement; p && p !== document.body; p = p.parentElement) {
+            if (
+              p.tagName === "LI" ||
+              p.className?.includes("item") ||
+              p.className?.includes("card") ||
+              p.className?.includes("prd")
+            ) {
+              container = p;
+              break;
+            }
+            if ((p.textContent?.length || 0) > 1000) break;
+            container = p;
           }
-        }
 
-        if (anchors.length === 0) {
-          anchors = Array.from(document.querySelectorAll("a")).filter((a) => {
-            const href = a.getAttribute("href") || "";
-            return (
-              href.includes("/product/") ||
-              href.includes("/goods/") ||
-              href.includes("GoodsCode=")
-            );
-          });
-        }
-
-        anchors.forEach((el, i) => {
-          const parent = el.closest("li") || el.parentElement || el;
           const title =
-            parent
-              .querySelector(
-                "[class*=name], [class*=title], [class*=tit], strong, h3, h4, span"
-              )
-              ?.textContent?.trim() ||
-            (el as HTMLAnchorElement).title?.trim() ||
-            el.querySelector("img")?.getAttribute("alt")?.trim();
-          if (!title || title.length < 2) return;
+            container.querySelector("[class*=name], [class*=title], [class*=tit], strong, h3, h4, span")?.textContent?.trim() ||
+            a.getAttribute("title")?.trim() ||
+            a.textContent?.trim() ||
+            container.querySelector("img")?.getAttribute("alt")?.trim();
+          if (!title || title.length < 2 || title.length > 300) return;
 
-          const href = (el as HTMLAnchorElement).href || el.getAttribute("href") || "";
+          const href = a.getAttribute("href") || a.href || "";
           const url = href.startsWith("http")
             ? href
-            : href
-              ? `https://tickets.interpark.com${href}`
-              : "https://tickets.interpark.com";
+            : `https://tickets.interpark.com${href}`;
 
-          const dateText = parent.textContent || "";
-          const venueEl = parent.querySelector(
-            "[class*=place], [class*=venue], [class*=hall], [class*=location]"
-          );
-          const venue = venueEl?.textContent?.trim() || "";
-          const img = parent.querySelector("img")?.getAttribute("src") || "";
+          const containerText = container.textContent || "";
+          const img = container.querySelector("img")?.getAttribute("src") || "";
 
           results.push({
             id: `interpark-${i}`,
             title: title.replace(/\s+/g, " ").substring(0, 200),
-            date: dateText,
-            venue: venue || undefined,
+            date: containerText,
             platform: "interpark" as const,
             url,
             imageUrl: img || undefined,
@@ -351,25 +328,32 @@ async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
         return results;
       });
 
+      if (items.length > 0 && items.length <= 10) {
+        // Log date texts for debugging
+        console.log("  [Debug] Interpark extracted dates:", items.map(t => ({
+          title: t.title.substring(0, 30),
+          dateSnippet: t.date.substring(0, 100),
+        })));
+      }
+
       if (items.length === 0) {
         const debug = await page.evaluate(() => {
           const allA = document.querySelectorAll("a");
-          const productLinks = Array.from(allA)
-            .filter((a) => {
-              const href = a.href || "";
-              return href.includes("interpark") && href.length > 40;
-            })
-            .slice(0, 5)
-            .map((a) => ({ href: a.href, text: a.textContent?.trim()?.substring(0, 60) }));
-          const bodyText = document.body?.innerText?.substring(0, 500) || "";
+          const links = Array.from(allA)
+            .filter((a) => (a.href || "").length > 40)
+            .slice(0, 10)
+            .map((a) => ({
+              href: a.getAttribute("href"),
+              text: a.textContent?.trim()?.substring(0, 60),
+            }));
           return {
             aCount: allA.length,
-            productLinks,
-            bodySnippet: bodyText,
+            links,
+            bodySnippet: document.body?.innerText?.substring(0, 500) || "",
             title: document.title,
           };
         });
-        console.log("  [Debug] Interpark page:", JSON.stringify(debug));
+        console.log("  [Debug] Interpark:", JSON.stringify(debug));
       }
 
       return items;
@@ -384,129 +368,130 @@ async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
 // ─── 티켓링크 ───────────────────────────────────────────
 async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
   console.log("[티켓링크] 스크래핑 시작...");
-  const tickets = await withPage(
-    browser,
-    "https://www.ticketlink.co.kr/performance/concert",
-    async (page) => {
-      await page.waitForTimeout(8000);
 
-      await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight / 2);
+  const page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
+
+  try {
+    const response = await page.goto(
+      "https://www.ticketlink.co.kr/performance/concert",
+      { waitUntil: "domcontentloaded", timeout: 30000 }
+    );
+
+    // Wait for any redirects to settle
+    await page.waitForTimeout(3000);
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 10000 });
+    } catch {
+      // networkidle may not be reached
+    }
+    await page.waitForTimeout(5000);
+
+    const currentUrl = page.url();
+    console.log(`  [Debug] Ticketlink final URL: ${currentUrl}`);
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+    await page.waitForTimeout(2000);
+
+    const items = await page.evaluate(() => {
+      const results: TicketInfo[] = [];
+
+      // Find product/performance detail links
+      const perfLinks = Array.from(document.querySelectorAll("a")).filter((a) => {
+        const href = a.getAttribute("href") || a.href || "";
+        return (
+          href.includes("/product/") ||
+          href.includes("/performance/") ||
+          href.includes("/event/") ||
+          (href.includes("ticketlink") && /\d{5,}/.test(href))
+        );
       });
-      await page.waitForTimeout(2000);
 
-      const items = await page.evaluate(() => {
-        const results: TicketInfo[] = [];
+      const seen = new Set<string>();
+      const uniqueLinks = perfLinks.filter((a) => {
+        const href = a.getAttribute("href") || a.href || "";
+        // Filter out category links
+        if (href.endsWith("/concert") || href.endsWith("/musical") || href.endsWith("/classic")) return false;
+        if (seen.has(href)) return false;
+        seen.add(href);
+        return true;
+      });
 
-        const selectorGroups = [
-          "[class*=product-list] li",
-          "[class*=performance-list] li",
-          "[class*=event-list] li",
-          "[class*=ranking] li",
-          ".list-wrap li",
-          ".prd-list li",
-        ];
-
-        let elements: Element[] = [];
-        for (const sel of selectorGroups) {
-          const found = document.querySelectorAll(sel);
-          if (found.length > 0) {
-            elements = Array.from(found);
+      uniqueLinks.forEach((a, i) => {
+        let container: Element = a;
+        for (let p = a.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (
+            p.tagName === "LI" ||
+            p.className?.includes("item") ||
+            p.className?.includes("card") ||
+            p.className?.includes("product")
+          ) {
+            container = p;
             break;
           }
+          if ((p.textContent?.length || 0) > 1000) break;
+          container = p;
         }
 
-        if (elements.length === 0) {
-          elements = Array.from(
-            document.querySelectorAll("a")
-          )
-            .filter((a) => {
-              const href = a.getAttribute("href") || "";
-              return (
-                href.includes("/product/") ||
-                href.includes("/performance/") ||
-                href.includes("/event/")
-              );
-            })
-            .map((a) => a.closest("li") || a.parentElement || a)
-            .filter(
-              (el, i, arr) => arr.indexOf(el) === i
-            ) as Element[];
-        }
+        const title =
+          container.querySelector("[class*=name], [class*=title], [class*=tit], strong, h3, h4")?.textContent?.trim() ||
+          a.getAttribute("title")?.trim() ||
+          a.textContent?.trim() ||
+          container.querySelector("img")?.getAttribute("alt")?.trim();
+        if (!title || title.length < 2 || title.length > 300) return;
 
-        elements.forEach((el, i) => {
-          const anchor = el.querySelector("a") || (el.tagName === "A" ? el : null);
-          const title =
-            el
-              .querySelector(
-                "[class*=name], [class*=title], [class*=tit], strong, h3, h4"
-              )
-              ?.textContent?.trim() ||
-            (anchor as HTMLAnchorElement)?.title?.trim() ||
-            anchor?.textContent?.trim() ||
-            el.querySelector("img")?.getAttribute("alt")?.trim();
-          if (!title || title.length < 2) return;
+        const href = a.getAttribute("href") || a.href || "";
+        const url = href.startsWith("http")
+          ? href
+          : `https://www.ticketlink.co.kr${href}`;
 
-          const href = anchor?.getAttribute("href") || (anchor as HTMLAnchorElement)?.href || "";
-          const url = href.startsWith("http")
-            ? href
-            : href
-              ? `https://www.ticketlink.co.kr${href}`
-              : "https://www.ticketlink.co.kr";
+        const containerText = container.textContent || "";
+        const img = container.querySelector("img")?.getAttribute("src") || "";
 
-          const dateText = el.textContent || "";
-          const venueEl = el.querySelector(
-            "[class*=place], [class*=venue], [class*=hall], [class*=location]"
-          );
-          const venue = venueEl?.textContent?.trim() || "";
-          const img = el.querySelector("img")?.getAttribute("src") || "";
-
-          results.push({
-            id: `ticketlink-${i}`,
-            title: title.replace(/\s+/g, " ").substring(0, 200),
-            date: dateText,
-            venue: venue || undefined,
-            platform: "ticketlink" as const,
-            url,
-            imageUrl: img
-              ? img.startsWith("http")
-                ? img
-                : `https://www.ticketlink.co.kr${img}`
-              : undefined,
-          });
+        results.push({
+          id: `ticketlink-${i}`,
+          title: title.replace(/\s+/g, " ").substring(0, 200),
+          date: containerText,
+          platform: "ticketlink" as const,
+          url,
+          imageUrl: img
+            ? img.startsWith("http") ? img : `https://www.ticketlink.co.kr${img}`
+            : undefined,
         });
-
-        return results;
       });
 
-      if (items.length === 0) {
-        const debug = await page.evaluate(() => {
-          const allA = document.querySelectorAll("a");
-          const perfLinks = Array.from(allA)
-            .filter((a) => {
-              const href = a.href || "";
-              return href.includes("ticketlink") && href.length > 40;
-            })
-            .slice(0, 5)
-            .map((a) => ({ href: a.href, text: a.textContent?.trim()?.substring(0, 60) }));
-          const bodyText = document.body?.innerText?.substring(0, 500) || "";
-          return {
-            aCount: allA.length,
-            perfLinks,
-            bodySnippet: bodyText,
-            title: document.title,
-          };
-        });
-        console.log("  [Debug] Ticketlink page:", JSON.stringify(debug));
-      }
+      return results;
+    });
 
-      return items;
+    if (items.length === 0) {
+      const debug = await page.evaluate(() => {
+        const allA = document.querySelectorAll("a");
+        const links = Array.from(allA)
+          .filter((a) => (a.href || "").length > 40)
+          .slice(0, 10)
+          .map((a) => ({
+            href: a.getAttribute("href"),
+            text: a.textContent?.trim()?.substring(0, 60),
+          }));
+        return {
+          aCount: allA.length,
+          links,
+          bodySnippet: document.body?.innerText?.substring(0, 500) || "",
+          title: document.title,
+        };
+      });
+      console.log("  [Debug] Ticketlink:", JSON.stringify(debug));
     }
-  );
 
-  const result = postProcess(tickets, "ticketlink");
-  console.log(`[티켓링크] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
-  return result;
+    const result = postProcess(items, "ticketlink");
+    console.log(`[티켓링크] ${items.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
+    return result;
+  } catch (e) {
+    console.warn("  [티켓링크] error:", (e as Error).message);
+    return [];
+  } finally {
+    await page.close();
+  }
 }
 
 // ─── 후처리: 날짜 파싱 + 필터링 ────────────────────────
