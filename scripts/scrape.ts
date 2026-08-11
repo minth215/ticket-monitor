@@ -333,8 +333,8 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
       return [];
     }
 
-    // Wait for API responses to arrive
-    await page.waitForTimeout(10000);
+    // Short wait — this first load is only used to read the gnb menu (fired on every page)
+    await page.waitForTimeout(5000);
 
     console.log(`  [Debug] Ticketlink captured ${apiResponses.length} JSON API responses`);
     const seenUrls = new Set<string>();
@@ -362,7 +362,12 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
           console.log(`  [Debug] Ticketlink navigating to actual concert page: ${concertUrl}`);
           try {
             await page.goto(concertUrl, { waitUntil: "commit", timeout: 30000 });
-            await page.waitForTimeout(10000);
+            await page.waitForTimeout(3000);
+            // The ranking/listing widget appears to lazy-load on scroll — nudge it into view
+            for (let i = 0; i < 5; i++) {
+              await page.mouse.wheel(0, 1000).catch(() => {});
+              await page.waitForTimeout(1500);
+            }
             console.log(`  [Debug] Ticketlink now captured ${apiResponses.length} total JSON API responses`);
             for (const resp of apiResponses) {
               if (seenUrls.has(resp.url)) continue;
