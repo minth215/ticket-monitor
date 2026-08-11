@@ -300,185 +300,165 @@ async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
 async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
   console.log("[티켓링크] 스크래핑 시작...");
 
-  const page = await browser.newPage();
-  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
+  // /performance/16 = concert genre page (discovered from site nav links)
+  const candidateUrls = [
+    "https://www.ticketlink.co.kr/performance/16",
+    "https://www.ticketlink.co.kr/performance/14",
+  ];
 
-  try {
-    await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+  for (const targetUrl of candidateUrls) {
+    const page = await browser.newPage();
+    page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
-    // Try multiple URLs — the ranking page was returning 404
-    const candidateUrls = [
-      "https://www.ticketlink.co.kr/help/category/concert",
-      "https://www.ticketlink.co.kr/performance/concert",
-      "https://www.ticketlink.co.kr/genre/concert",
-      "https://www.ticketlink.co.kr/home",
-    ];
+    try {
+      await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+      console.log(`  [Debug] Ticketlink trying: ${targetUrl}`);
 
-    let workingUrl = "";
-    let bodyText = "";
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+      await page.waitForTimeout(8000);
 
-    for (const url of candidateUrls) {
-      try {
-        console.log(`  [Debug] Ticketlink trying: ${url}`);
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
-        await page.waitForTimeout(5000);
-
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate((step) => {
-            window.scrollTo(0, document.body.scrollHeight * (step + 1) / 3);
-          }, i);
-          await page.waitForTimeout(1500);
-        }
-
-        const text = await page.evaluate(() => document.body?.innerText || "");
-        const hasError = text.includes("페이지를 찾을 수 없습니다") || text.includes("404");
-        console.log(`  [Debug] Ticketlink ${url} → bodyLen=${text.length}, error=${hasError}`);
-        console.log(`  [Debug] Ticketlink snippet: ${text.substring(0, 400).replace(/\n/g, "\\n")}`);
-
-        // Also log hrefs to understand site structure
-        const hrefs = await page.evaluate(() => {
-          return Array.from(new Set(
-            Array.from(document.querySelectorAll("a"))
-              .map(a => a.getAttribute("href") || "")
-              .filter(h => h.length > 3 && !h.startsWith("javascript") && !h.startsWith("#"))
-          )).slice(0, 25);
-        });
-        console.log(`  [Debug] Ticketlink hrefs (${hrefs.length}):`, hrefs.slice(0, 15).join(", "));
-
-        if (!hasError && text.length > 1000) {
-          workingUrl = url;
-          bodyText = text;
-          console.log(`  [Debug] Ticketlink using URL: ${url} (bodyLen=${text.length})`);
-          break;
-        }
-      } catch (urlErr) {
-        console.log(`  [Debug] Ticketlink ${url} failed: ${(urlErr as Error).message}`);
+      for (let i = 0; i < 4; i++) {
+        await page.evaluate((step) => {
+          window.scrollTo(0, document.body.scrollHeight * (step + 1) / 4);
+        }, i);
+        await page.waitForTimeout(2000);
       }
-    }
 
-    if (!workingUrl) {
-      console.log(`[티켓링크] 모든 URL 실패 — 0개 추출`);
-      return [];
-    }
+      const bodyText = await page.evaluate(() => document.body?.innerText || "");
+      const hasError = bodyText.includes("페이지를 찾을 수 없습니다");
+      console.log(`  [Debug] Ticketlink ${targetUrl} → bodyLen=${bodyText.length}, error=${hasError}`);
+      console.log(`  [Debug] Ticketlink snippet: ${bodyText.substring(0, 500).replace(/\n/g, "\\n")}`);
 
-    // Strategy 1: Find links with numeric product/performance IDs
-    const linkResults = await page.evaluate(() => {
-      const results: { title: string; date: string; url: string; img: string }[] = [];
-      const allLinks = Array.from(document.querySelectorAll("a"));
-      const perfLinks = allLinks.filter((a) => {
-        const href = a.getAttribute("href") || "";
-        return /\/(product|performance|event)\/\d+/.test(href);
+      if (hasError || bodyText.length < 500) {
+        console.log(`  [Debug] Ticketlink skipping ${targetUrl}`);
+        await page.close();
+        continue;
+      }
+
+      // Strategy 1: Find product links
+      const linkResults = await page.evaluate(() => {
+        const results: { title: string; date: string; url: string; img: string }[] = [];
+        const allLinks = Array.from(document.querySelectorAll("a"));
+        const perfLinks = allLinks.filter((a) => {
+          const href = a.getAttribute("href") || "";
+          return /\/product\/\d+/.test(href);
+        });
+
+        const seen = new Set<string>();
+        perfLinks.filter((a) => {
+          const href = a.getAttribute("href") || "";
+          if (seen.has(href)) return false;
+          seen.add(href);
+          return true;
+        }).forEach((a) => {
+          const container = a.closest("[class*=item], [class*=rank], [class*=card], [class*=product], [class*=event], [class*=list], li")
+                           || a.parentElement;
+          const containerTextLen = container?.textContent?.length || 0;
+          const useContainer = container && containerTextLen < 500;
+          const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
+
+          let title: string | null = null;
+          const titleAttr = a.getAttribute("title")?.trim();
+          if (titleAttr && titleAttr.length > 2) title = titleAttr;
+          if (!title && imgEl) {
+            const alt = imgEl.getAttribute("alt")?.trim();
+            if (alt && alt.length > 2) title = alt;
+          }
+          if (!title) {
+            const linkText = a.textContent?.trim();
+            if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
+          }
+          if (!title) return;
+
+          const href = a.getAttribute("href") || "";
+          const url = href.startsWith("http") ? href : `https://www.ticketlink.co.kr${href}`;
+          const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
+          const img = imgEl?.getAttribute("src") || "";
+
+          results.push({
+            title: title.replace(/\s+/g, " ").substring(0, 200),
+            date: dateText,
+            url,
+            img: img ? (img.startsWith("http") ? img : `https://www.ticketlink.co.kr${img}`) : "",
+          });
+        });
+        return results;
       });
 
-      const seen = new Set<string>();
-      perfLinks.filter((a) => {
-        const href = a.getAttribute("href") || "";
-        if (seen.has(href)) return false;
-        seen.add(href);
-        return true;
-      }).forEach((a) => {
-        const container = a.closest("[class*=item], [class*=rank], [class*=card], [class*=product], [class*=event], li")
-                         || a.parentElement;
-        const containerTextLen = container?.textContent?.length || 0;
-        const useContainer = container && containerTextLen < 500;
-        const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
-
-        let title: string | null = null;
-        const titleAttr = a.getAttribute("title")?.trim();
-        if (titleAttr && titleAttr.length > 2) title = titleAttr;
-        if (!title && imgEl) {
-          const alt = imgEl.getAttribute("alt")?.trim();
-          if (alt && alt.length > 2) title = alt;
+      console.log(`  [Debug] Ticketlink link strategy: ${linkResults.length} items`);
+      if (linkResults.length > 0) {
+        console.log(`  [Debug] Ticketlink link samples:`, linkResults.slice(0, 5).map(l => ({
+          title: l.title.substring(0, 50), url: l.url.substring(0, 60),
+        })));
+        const linkTickets: TicketInfo[] = linkResults.map((item, i) => ({
+          id: `ticketlink-${i}`,
+          title: item.title,
+          date: item.date,
+          platform: "ticketlink" as const,
+          url: item.url,
+          imageUrl: item.img || undefined,
+        }));
+        const linkResult = postProcess(linkTickets, "ticketlink");
+        if (linkResult.length > 0) {
+          console.log(`[티켓링크] ${linkTickets.length}개 추출 → ${linkResult.length}개 (날짜 파싱 후)`);
+          await page.close();
+          return linkResult;
         }
-        if (!title) {
-          const linkText = a.textContent?.trim();
-          if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
-        }
-        if (!title) return;
-
-        const href = a.getAttribute("href") || "";
-        const url = href.startsWith("http") ? href : `https://www.ticketlink.co.kr${href}`;
-        const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
-        const img = imgEl?.getAttribute("src") || "";
-
-        results.push({
-          title: title.replace(/\s+/g, " ").substring(0, 200),
-          date: dateText,
-          url,
-          img: img ? (img.startsWith("http") ? img : `https://www.ticketlink.co.kr${img}`) : "",
-        });
-      });
-      return results;
-    });
-
-    console.log(`  [Debug] Ticketlink link strategy: ${linkResults.length} items`);
-    if (linkResults.length > 0) {
-      console.log(`  [Debug] Ticketlink link samples:`, linkResults.slice(0, 5).map(l => ({
-        title: l.title.substring(0, 50), url: l.url.substring(0, 60),
-      })));
-      const linkTickets: TicketInfo[] = linkResults.map((item, i) => ({
-        id: `ticketlink-${i}`,
-        title: item.title,
-        date: item.date,
-        platform: "ticketlink" as const,
-        url: item.url,
-        imageUrl: item.img || undefined,
-      }));
-      const linkResult = postProcess(linkTickets, "ticketlink");
-      if (linkResult.length > 0) {
-        console.log(`[티켓링크] ${linkTickets.length}개 추출 → ${linkResult.length}개 (날짜 파싱 후)`);
-        return linkResult;
+        console.log(`  [Debug] Ticketlink ${linkResults.length} link items → 0 after postProcess, trying text parsing`);
       }
-      console.log(`  [Debug] Ticketlink ${linkResults.length} link items → 0 after postProcess, trying text parsing`);
-    }
 
-    // Strategy 2: Body text parsing
-    const tickets: TicketInfo[] = [];
-    const lines = bodyText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    const navSkip = /^(뮤지컬|콘서트|연극|클래식|무용|전시|스포츠|가족|어린이|아동|랭킹|이벤트|티켓링크|로그인|마이페이지|검색|배너|닫기|공연전시|예매|안내|홈|전체|카테고리|더보기|클래식·무용|아동·가족|한국어|English)$/;
+      // Strategy 2: Body text parsing
+      const tickets: TicketInfo[] = [];
+      const lines = bodyText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      const navSkip = /^(뮤지컬|콘서트|연극|클래식|무용|전시|스포츠|가족|어린이|아동|랭킹|이벤트|티켓링크|로그인|마이페이지|검색|배너|닫기|공연전시|예매|안내|홈|전체|카테고리|더보기|클래식·무용|아동·가족|한국어|English)$/;
 
-    for (let i = 0; i < lines.length - 1; i++) {
-      const dateMatch = lines[i].match(/(\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*[~\-]\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2})/);
-      if (dateMatch && i > 0) {
-        let titleIdx = i - 1;
-        while (titleIdx >= 0 && (/^\d{1,3}$/.test(lines[titleIdx]) || navSkip.test(lines[titleIdx]) || lines[titleIdx].length < 2)) {
-          titleIdx--;
+      for (let i = 0; i < lines.length - 1; i++) {
+        const dateMatch = lines[i].match(/(\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*[~\-]\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2})/);
+        if (dateMatch && i > 0) {
+          let titleIdx = i - 1;
+          while (titleIdx >= 0 && (/^\d{1,3}$/.test(lines[titleIdx]) || navSkip.test(lines[titleIdx]) || lines[titleIdx].length < 2)) {
+            titleIdx--;
+          }
+          if (titleIdx < 0) continue;
+          const title = lines[titleIdx];
+          if (title.length > 300 || navSkip.test(title)) continue;
+
+          const venueIdx = i + 1;
+          const venue = (venueIdx < lines.length && !navSkip.test(lines[venueIdx]) && !/^\d{1,3}$/.test(lines[venueIdx]))
+            ? lines[venueIdx] : undefined;
+
+          const parsedDate = dateMatch[1].replace(/[./]/g, "-");
+          tickets.push({
+            id: `ticketlink-${tickets.length}`,
+            title: title.replace(/\s+/g, " "),
+            date: parsedDate,
+            venue,
+            platform: "ticketlink",
+            url: targetUrl,
+          });
         }
-        if (titleIdx < 0) continue;
-        const title = lines[titleIdx];
-        if (title.length > 300 || navSkip.test(title)) continue;
-
-        const venueIdx = i + 1;
-        const venue = (venueIdx < lines.length && !navSkip.test(lines[venueIdx]) && !/^\d{1,3}$/.test(lines[venueIdx]))
-          ? lines[venueIdx] : undefined;
-
-        const parsedDate = dateMatch[1].replace(/[./]/g, "-");
-        tickets.push({
-          id: `ticketlink-${tickets.length}`,
-          title: title.replace(/\s+/g, " "),
-          date: parsedDate,
-          venue,
-          platform: "ticketlink",
-          url: workingUrl,
-        });
       }
-    }
 
-    if (tickets.length > 0) {
-      console.log(`  [Debug] Ticketlink text-parsed sample:`, tickets.slice(0, 3).map(t => ({
-        title: t.title.substring(0, 50),
-        date: t.date,
-      })));
-    }
+      if (tickets.length > 0) {
+        console.log(`  [Debug] Ticketlink text-parsed sample:`, tickets.slice(0, 3).map(t => ({
+          title: t.title.substring(0, 50),
+          date: t.date,
+        })));
+        console.log(`[티켓링크] ${tickets.length}개 추출 (텍스트 파싱)`);
+        await page.close();
+        return tickets;
+      }
 
-    console.log(`[티켓링크] ${tickets.length}개 추출 (텍스트 파싱)`);
-    return tickets;
-  } catch (e) {
-    console.warn("  [티켓링크] error:", (e as Error).message);
-    return [];
-  } finally {
-    await page.close();
+      console.log(`  [Debug] Ticketlink ${targetUrl}: no tickets extracted, trying next URL`);
+      await page.close();
+    } catch (e) {
+      console.warn(`  [티켓링크] ${targetUrl} error:`, (e as Error).message);
+      await page.close();
+    }
   }
+
+  console.log(`[티켓링크] 0개 추출`);
+  return [];
 }
 
 // ─── 후처리: 날짜 파싱 + 필터링 ────────────────────────
