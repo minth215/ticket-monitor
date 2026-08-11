@@ -314,12 +314,13 @@ async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
       await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
       console.log(`  [Debug] Ticketlink trying: ${targetUrl}`);
 
-      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
-      await page.waitForTimeout(8000);
+      await page.goto(targetUrl, { waitUntil: "commit", timeout: 30000 });
+      await page.waitForTimeout(12000);
 
       for (let i = 0; i < 4; i++) {
         await page.evaluate((step) => {
-          window.scrollTo(0, document.body.scrollHeight * (step + 1) / 4);
+          const h = document.body?.scrollHeight || 0;
+          if (h > 0) window.scrollTo(0, h * (step + 1) / 4);
         }, i);
         await page.waitForTimeout(2000);
       }
