@@ -334,20 +334,18 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     }
 
     // This first load is only used to read the gnb menu (fired on every page load).
-    // Wait for that specific response and read its body directly — waitForResponse
-    // resolves once headers arrive, before the async page.on("response") listener
-    // above has necessarily finished downloading+parsing the (large) body, so relying
-    // on a fixed buffer after it resolved was racy. Fetch the body ourselves instead.
+    // Wait for that response's headers, then poll for the page.on("response") listener
+    // above to finish parsing its body into apiResponses — reading response.json() a
+    // second time here (on the same underlying response) raced the listener's own read
+    // and intermittently threw "No resource with given identifier found" via CDP.
     try {
-      const gnbResponse = await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 15000 });
-      const gnbData = await gnbResponse.json();
-      if (!apiResponses.some((r) => r.url === gnbResponse.url())) {
-        apiResponses.push({ url: gnbResponse.url(), data: gnbData });
+      await page.waitForResponse((r) => r.url().includes("/gnb"), { timeout: 15000 });
+      for (let i = 0; i < 20 && !apiResponses.some((r) => r.url.includes("/gnb")); i++) {
+        await page.waitForTimeout(250);
       }
     } catch (e) {
-      console.log(`  [Debug] Ticketlink gnb response did not arrive/parse:`, (e as Error).message);
+      console.log(`  [Debug] Ticketlink gnb response did not arrive:`, (e as Error).message);
     }
-    await page.waitForTimeout(1000);
 
     console.log(`  [Debug] Ticketlink captured ${apiResponses.length} JSON API responses`);
     const seenUrls = new Set<string>();
