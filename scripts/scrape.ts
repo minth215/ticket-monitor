@@ -36,6 +36,7 @@ async function withPage(
   fn: (page: Page) => Promise<TicketInfo[]>
 ): Promise<TicketInfo[]> {
   const page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     return await fn(page);
@@ -602,6 +603,10 @@ async function main() {
     await browser.close();
   }
 }
+
+process.on("unhandledRejection", (reason) => {
+  console.warn("Unhandled rejection (suppressed):", reason);
+});
 
 main().catch((e) => {
   console.error("스크래핑 실패:", e);
