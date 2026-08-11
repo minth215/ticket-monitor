@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 0,6,12,18 * * *" # 매 6시간마다 스크래핑 & 배포
+    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,8 +29,13 @@ jobs:
 
       - run: npm ci
 
+      - name: Install Chromium for Playwright
+        run: npx playwright install chromium --with-deps
+
       - name: Scrape ticket data
         run: npx tsx scripts/scrape.ts
+        env:
+          PLAYWRIGHT_CHROMIUM_PATH: ""
         continue-on-error: true
 
       - run: npm run build

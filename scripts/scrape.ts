@@ -1,4 +1,4 @@
-import * as cheerio from "cheerio";
+import { chromium, Browser, Page } from "playwright-core";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -11,577 +11,475 @@ interface TicketInfo {
   platform: "melon" | "yes24" | "interpark" | "nol" | "ticketlink";
   url: string;
   imageUrl?: string;
-  openDate?: string;
-  openTime?: string;
 }
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 function parseKoreanDate(text: string): string[] {
   const dates: string[] = [];
-
-  const single = text.match(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/g);
-  if (single) {
-    for (const m of single) {
-      const parts = m.split(/[.\-/]/);
-      dates.push(
-        `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`
-      );
+  const matches = text.match(/(\d{4})[.\-/\s](\d{1,2})[.\-/\s](\d{1,2})/g);
+  if (matches) {
+    for (const m of matches) {
+      const parts = m.split(/[.\-/\s]+/);
+      if (parts.length >= 3) {
+        dates.push(
+          `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`
+        );
+      }
     }
   }
-
-  if (dates.length >= 2) {
-    return [dates[0]];
-  }
-
+  // range → start date only
+  if (dates.length >= 2) return [dates[0]];
   return dates;
 }
 
-async function fetchWithRetry(
+async function withPage(
+  browser: Browser,
   url: string,
-  retries = 3
-): Promise<string | null> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": UA },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) {
-        console.warn(`  HTTP ${res.status} for ${url}`);
-        return null;
-      }
-      return await res.text();
-    } catch (e) {
-      console.warn(`  Attempt ${i + 1} failed for ${url}:`, (e as Error).message);
-      if (i < retries - 1) await new Promise((r) => setTimeout(r, 2000));
-    }
+  fn: (page: Page) => Promise<TicketInfo[]>
+): Promise<TicketInfo[]> {
+  const page = await browser.newPage();
+  try {
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    return await fn(page);
+  } catch (e) {
+    console.warn(`  Page error for ${url}:`, (e as Error).message);
+    return [];
+  } finally {
+    await page.close();
   }
-  return null;
 }
 
 // ─── 멜론티켓 ───────────────────────────────────────────
-async function scrapeMelon(): Promise<TicketInfo[]> {
+async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
   console.log("[멜론티켓] 스크래핑 시작...");
-  const tickets: TicketInfo[] = [];
+  const tickets = await withPage(
+    browser,
+    "https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON",
+    async (page) => {
+      await page.waitForTimeout(3000);
+      return page.evaluate(() => {
+        const items: TicketInfo[] = [];
+        document
+          .querySelectorAll(
+            "#conts .list_thumb li, #conts .thumb_list li, .list_item li, .festival_list li, [class*=list] li"
+          )
+          .forEach((el, i) => {
+            const anchor = el.querySelector("a");
+            const titleEl =
+              el.querySelector("[class*=ellipsis], [class*=tit], [class*=name]") ||
+              anchor;
+            const title =
+              titleEl?.textContent?.trim() ||
+              anchor?.getAttribute("title")?.trim() ||
+              el.querySelector("img")?.getAttribute("alt")?.trim();
+            if (!title || title.length < 2) return;
 
-  const pages = [1, 2, 3];
-  for (const page of pages) {
-    const html = await fetchWithRetry(
-      `https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON&pageIndex=${page}`
-    );
-    if (!html) continue;
+            const href = anchor?.getAttribute("href") || "";
+            const url = href.startsWith("http")
+              ? href
+              : href
+                ? `https://ticket.melon.com${href}`
+                : "https://ticket.melon.com";
 
-    const $ = cheerio.load(html);
+            const dateEl = el.querySelector(
+              "[class*=date], [class*=period], [class*=day]"
+            );
+            const dateText = dateEl?.textContent?.trim() || "";
 
-    $(".list_thumb li, .thumb_list li, .list_ticket li").each((_i, el) => {
-      const $el = $(el);
-      const title =
-        $el.find(".ellipsis a, .tit a, .show_name a").first().text().trim() ||
-        $el.find("a").first().attr("title")?.trim() ||
-        $el.find("a img").attr("alt")?.trim();
-      if (!title) return;
+            const placeEl = el.querySelector(
+              "[class*=place], [class*=venue], [class*=hall]"
+            );
+            const venue = placeEl?.textContent?.trim() || "";
 
-      const href = $el.find("a").first().attr("href") || "";
-      const url = href.startsWith("http")
-        ? href
-        : href
-          ? `https://ticket.melon.com${href}`
-          : "https://ticket.melon.com";
+            const img = el.querySelector("img")?.getAttribute("src") || "";
 
-      const dateText =
-        $el.find(".date, .period, .show_date").first().text().trim() || "";
-      const venue =
-        $el.find(".place, .show_place, .venue").first().text().trim() || "";
-      const img = $el.find("img").first().attr("src") || "";
-
-      const dates = parseKoreanDate(dateText);
-      for (const date of dates) {
-        tickets.push({
-          id: `melon-${tickets.length}`,
-          title: title.replace(/\s+/g, " "),
-          date,
-          venue: venue || undefined,
-          platform: "melon",
-          url,
-          imageUrl: img || undefined,
-        });
-      }
-    });
-  }
-
-  console.log(`[멜론티켓] ${tickets.length}개 수집`);
-  return tickets;
-}
-
-// ─── Yes24 티켓 ─────────────────────────────────────────
-async function scrapeYes24(): Promise<TicketInfo[]> {
-  console.log("[Yes24] 스크래핑 시작...");
-  const tickets: TicketInfo[] = [];
-
-  const urls = [
-    "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456",
-    "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15457",
-  ];
-
-  for (const pageUrl of urls) {
-    const html = await fetchWithRetry(pageUrl);
-    if (!html) continue;
-
-    const $ = cheerio.load(html);
-
-    $(
-      ".genre-list li, .list-grid li, .content-area li, .rn-genre-list li"
-    ).each((_i, el) => {
-      const $el = $(el);
-      const titleEl = $el.find(
-        "a .gen-title, a .rn-tit, .tit-area a, .list-title a"
-      );
-      const title =
-        titleEl.first().text().trim() ||
-        $el.find("a").first().attr("title")?.trim() ||
-        $el.find("a img").attr("alt")?.trim();
-      if (!title) return;
-
-      const href = $el.find("a").first().attr("href") || "";
-      const url = href.startsWith("http")
-        ? href
-        : href
-          ? `https://ticket.yes24.com${href}`
-          : "https://ticket.yes24.com";
-
-      const dateText =
-        $el
-          .find(".gen-date, .rn-date, .date-area, .list-date")
-          .first()
-          .text()
-          .trim() || "";
-      const venue =
-        $el
-          .find(".gen-place, .rn-place, .place-area, .list-place")
-          .first()
-          .text()
-          .trim() || "";
-      const img = $el.find("img").first().attr("src") || "";
-
-      const dates = parseKoreanDate(dateText);
-      for (const date of dates) {
-        tickets.push({
-          id: `yes24-${tickets.length}`,
-          title: title.replace(/\s+/g, " "),
-          date,
-          venue: venue || undefined,
-          platform: "yes24",
-          url,
-          imageUrl: img
-            ? img.startsWith("http")
-              ? img
-              : `https://ticket.yes24.com${img}`
-            : undefined,
-        });
-      }
-    });
-  }
-
-  console.log(`[Yes24] ${tickets.length}개 수집`);
-  return tickets;
-}
-
-// ─── 인터파크 티켓 ──────────────────────────────────────
-async function scrapeInterpark(): Promise<TicketInfo[]> {
-  console.log("[인터파크] 스크래핑 시작...");
-  const tickets: TicketInfo[] = [];
-
-  const apiUrls = [
-    "https://tickets.interpark.com/contents/api/goods/genre?genre=concert&page=1&size=20&sort=popular",
-    "https://tickets.interpark.com/contents/api/goods/genre?genre=concert&page=1&size=20&sort=recent",
-  ];
-
-  for (const apiUrl of apiUrls) {
-    try {
-      const res = await fetch(apiUrl, {
-        headers: {
-          "User-Agent": UA,
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        const items = json?.data?.content || json?.data?.items || json?.items || json?.content || [];
-
-        for (const item of items) {
-          const title = item.goodsName || item.name || item.title;
-          if (!title) continue;
-
-          const goodsCode = item.goodsCode || item.code || item.id || "";
-          const url = goodsCode
-            ? `https://tickets.interpark.com/goods/${goodsCode}`
-            : "https://tickets.interpark.com";
-
-          const startDate = item.playStartDate || item.startDate || item.date || "";
-          const dates = parseKoreanDate(startDate);
-          if (dates.length === 0 && startDate) {
-            const isoMatch = startDate.match(/^(\d{4}-\d{2}-\d{2})/);
-            if (isoMatch) dates.push(isoMatch[1]);
-          }
-
-          const venue = item.placeName || item.venue || item.place || "";
-          const img = item.posterUrl || item.imageUrl || item.poster || "";
-
-          for (const date of dates) {
-            tickets.push({
-              id: `interpark-${tickets.length}`,
+            items.push({
+              id: `melon-${i}`,
               title: title.replace(/\s+/g, " "),
-              date,
+              date: dateText,
               venue: venue || undefined,
-              platform: "interpark",
+              platform: "melon" as const,
               url,
               imageUrl: img || undefined,
             });
-          }
-        }
-        continue;
-      }
-    } catch {
-      // API 실패 시 HTML 파싱으로 폴백
+          });
+        return items;
+      });
     }
+  );
 
-    const html = await fetchWithRetry(
-      "https://tickets.interpark.com/contents/genre/concert"
-    );
-    if (!html) continue;
+  const result = postProcess(tickets, "melon");
+  console.log(`[멜론티켓] ${result.length}개 수집`);
+  return result;
+}
 
-    const $ = cheerio.load(html);
-    $(".prd-list li, .ranking-list li, .contents-list li").each((_i, el) => {
-      const $el = $(el);
-      const title =
-        $el.find(".prd-name, .tit, .goods-name").first().text().trim() ||
-        $el.find("a").first().attr("title")?.trim();
-      if (!title) return;
+// ─── Yes24 ──────────────────────────────────────────────
+async function scrapeYes24(browser: Browser): Promise<TicketInfo[]> {
+  console.log("[Yes24] 스크래핑 시작...");
+  const tickets = await withPage(
+    browser,
+    "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456",
+    async (page) => {
+      await page.waitForTimeout(3000);
+      return page.evaluate(() => {
+        const items: TicketInfo[] = [];
+        document
+          .querySelectorAll(
+            "[class*=genre] li, [class*=list] li, [class*=item], .content-area li"
+          )
+          .forEach((el, i) => {
+            const anchor = el.querySelector("a");
+            const titleEl =
+              el.querySelector(
+                "[class*=title], [class*=tit], [class*=name], [class*=gen-]"
+              ) || anchor;
+            const title =
+              titleEl?.textContent?.trim() ||
+              anchor?.getAttribute("title")?.trim() ||
+              el.querySelector("img")?.getAttribute("alt")?.trim();
+            if (!title || title.length < 2) return;
 
-      const href = $el.find("a").first().attr("href") || "";
-      const url = href.startsWith("http")
-        ? href
-        : `https://tickets.interpark.com${href}`;
+            const href = anchor?.getAttribute("href") || "";
+            const url = href.startsWith("http")
+              ? href
+              : href
+                ? `https://ticket.yes24.com${href}`
+                : "https://ticket.yes24.com";
 
-      const dateText =
-        $el.find(".prd-date, .date, .period").first().text().trim() || "";
-      const venue =
-        $el.find(".prd-place, .place, .venue").first().text().trim() || "";
+            const dateEl = el.querySelector(
+              "[class*=date], [class*=period], [class*=day]"
+            );
+            const dateText = dateEl?.textContent?.trim() || "";
 
-      const dates = parseKoreanDate(dateText);
-      for (const date of dates) {
-        tickets.push({
-          id: `interpark-${tickets.length}`,
-          title: title.replace(/\s+/g, " "),
-          date,
-          venue: venue || undefined,
-          platform: "interpark",
-          url,
-        });
-      }
-    });
-  }
+            const placeEl = el.querySelector(
+              "[class*=place], [class*=venue], [class*=hall]"
+            );
+            const venue = placeEl?.textContent?.trim() || "";
 
-  console.log(`[인터파크] ${tickets.length}개 수집`);
-  return tickets;
+            const img = el.querySelector("img")?.getAttribute("src") || "";
+
+            items.push({
+              id: `yes24-${i}`,
+              title: title.replace(/\s+/g, " "),
+              date: dateText,
+              venue: venue || undefined,
+              platform: "yes24" as const,
+              url,
+              imageUrl: img
+                ? img.startsWith("http")
+                  ? img
+                  : `https://ticket.yes24.com${img}`
+                : undefined,
+            });
+          });
+        return items;
+      });
+    }
+  );
+
+  const result = postProcess(tickets, "yes24");
+  console.log(`[Yes24] ${result.length}개 수집`);
+  return result;
+}
+
+// ─── 인터파크 ───────────────────────────────────────────
+async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
+  console.log("[인터파크] 스크래핑 시작...");
+  const tickets = await withPage(
+    browser,
+    "https://tickets.interpark.com/contents/genre/concert",
+    async (page) => {
+      await page.waitForTimeout(5000);
+      return page.evaluate(() => {
+        const items: TicketInfo[] = [];
+        document
+          .querySelectorAll(
+            "[class*=prd] li, [class*=list] li, [class*=item], [class*=ranking] li, [class*=card]"
+          )
+          .forEach((el, i) => {
+            const anchor = el.querySelector("a");
+            const titleEl =
+              el.querySelector(
+                "[class*=name], [class*=title], [class*=tit], [class*=prd-name]"
+              ) || anchor;
+            const title =
+              titleEl?.textContent?.trim() ||
+              anchor?.getAttribute("title")?.trim() ||
+              el.querySelector("img")?.getAttribute("alt")?.trim();
+            if (!title || title.length < 2) return;
+
+            const href = anchor?.getAttribute("href") || "";
+            const url = href.startsWith("http")
+              ? href
+              : href
+                ? `https://tickets.interpark.com${href}`
+                : "https://tickets.interpark.com";
+
+            const dateEl = el.querySelector(
+              "[class*=date], [class*=period], [class*=day]"
+            );
+            const dateText = dateEl?.textContent?.trim() || "";
+
+            const placeEl = el.querySelector(
+              "[class*=place], [class*=venue], [class*=hall]"
+            );
+            const venue = placeEl?.textContent?.trim() || "";
+
+            const img = el.querySelector("img")?.getAttribute("src") || "";
+
+            items.push({
+              id: `interpark-${i}`,
+              title: title.replace(/\s+/g, " "),
+              date: dateText,
+              venue: venue || undefined,
+              platform: "interpark" as const,
+              url,
+              imageUrl: img || undefined,
+            });
+          });
+        return items;
+      });
+    }
+  );
+
+  const result = postProcess(tickets, "interpark");
+  console.log(`[인터파크] ${result.length}개 수집`);
+  return result;
 }
 
 // ─── 놀 티켓 ────────────────────────────────────────────
-async function scrapeNol(): Promise<TicketInfo[]> {
+async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
   console.log("[놀 티켓] 스크래핑 시작...");
-  const tickets: TicketInfo[] = [];
 
-  const html = await fetchWithRetry(
-    "https://ticket.nol.auction.co.kr/Category/ConcertList.aspx"
-  );
-  if (!html) {
-    const html2 = await fetchWithRetry(
-      "https://nol.auction.co.kr/concert/list.do"
-    );
-    if (html2) {
-      const $ = cheerio.load(html2);
-      $(".concert-list li, .list_item li, .thumb_list li").each((_i, el) => {
-        const $el = $(el);
-        const title =
-          $el.find(".tit, .name, .show-title").first().text().trim() ||
-          $el.find("a").first().attr("title")?.trim();
-        if (!title) return;
+  const urls = [
+    "https://ticket.nol.auction.co.kr/Category/ConcertList.aspx",
+    "https://nol.auction.co.kr/concert/list.do",
+  ];
 
-        const href = $el.find("a").first().attr("href") || "";
-        const url = href.startsWith("http")
-          ? href
-          : `https://nol.auction.co.kr${href}`;
+  for (const url of urls) {
+    const tickets = await withPage(browser, url, async (page) => {
+      await page.waitForTimeout(3000);
+      return page.evaluate(() => {
+        const items: TicketInfo[] = [];
+        document
+          .querySelectorAll(
+            "[class*=list] li, [class*=item], [class*=concert] li, [class*=thumb] li"
+          )
+          .forEach((el, i) => {
+            const anchor = el.querySelector("a");
+            const titleEl =
+              el.querySelector(
+                "[class*=tit], [class*=name], [class*=title]"
+              ) || anchor;
+            const title =
+              titleEl?.textContent?.trim() ||
+              anchor?.getAttribute("title")?.trim() ||
+              el.querySelector("img")?.getAttribute("alt")?.trim();
+            if (!title || title.length < 2) return;
 
-        const dateText =
-          $el.find(".date, .period, .show-date").first().text().trim() || "";
-        const venue =
-          $el.find(".place, .venue, .show-place").first().text().trim() || "";
+            const href = anchor?.getAttribute("href") || "";
+            const pageUrl = href.startsWith("http")
+              ? href
+              : href
+                ? `https://nol.auction.co.kr${href}`
+                : "https://nol.auction.co.kr";
 
-        const dates = parseKoreanDate(dateText);
-        for (const date of dates) {
-          tickets.push({
-            id: `nol-${tickets.length}`,
-            title: title.replace(/\s+/g, " "),
-            date,
-            venue: venue || undefined,
-            platform: "nol",
-            url,
+            const dateEl = el.querySelector(
+              "[class*=date], [class*=period], [class*=day]"
+            );
+            const dateText = dateEl?.textContent?.trim() || "";
+
+            const placeEl = el.querySelector(
+              "[class*=place], [class*=venue], [class*=hall]"
+            );
+            const venue = placeEl?.textContent?.trim() || "";
+
+            items.push({
+              id: `nol-${i}`,
+              title: title.replace(/\s+/g, " "),
+              date: dateText,
+              venue: venue || undefined,
+              platform: "nol" as const,
+              url: pageUrl,
+            });
           });
-        }
+        return items;
       });
+    });
+
+    const result = postProcess(tickets, "nol");
+    if (result.length > 0) {
+      console.log(`[놀 티켓] ${result.length}개 수집`);
+      return result;
     }
-    console.log(`[놀 티켓] ${tickets.length}개 수집`);
-    return tickets;
   }
 
-  const $ = cheerio.load(html);
-  $(".list_area li, .concert-list li, .thumb_list li").each((_i, el) => {
-    const $el = $(el);
-    const title =
-      $el.find(".tit a, .name a, .ellipsis a").first().text().trim() ||
-      $el.find("a").first().attr("title")?.trim() ||
-      $el.find("a img").attr("alt")?.trim();
-    if (!title) return;
-
-    const href = $el.find("a").first().attr("href") || "";
-    const url = href.startsWith("http")
-      ? href
-      : `https://ticket.nol.auction.co.kr${href}`;
-
-    const dateText =
-      $el.find(".date, .period, .show_date").first().text().trim() || "";
-    const venue =
-      $el.find(".place, .venue, .show_place").first().text().trim() || "";
-    const img = $el.find("img").first().attr("src") || "";
-
-    const dates = parseKoreanDate(dateText);
-    for (const date of dates) {
-      tickets.push({
-        id: `nol-${tickets.length}`,
-        title: title.replace(/\s+/g, " "),
-        date,
-        venue: venue || undefined,
-        platform: "nol",
-        url,
-        imageUrl: img || undefined,
-      });
-    }
-  });
-
-  console.log(`[놀 티켓] ${tickets.length}개 수집`);
-  return tickets;
+  console.log("[놀 티켓] 0개 수집");
+  return [];
 }
 
 // ─── 티켓링크 ───────────────────────────────────────────
-async function scrapeTicketlink(): Promise<TicketInfo[]> {
+async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
   console.log("[티켓링크] 스크래핑 시작...");
-  const tickets: TicketInfo[] = [];
+  const tickets = await withPage(
+    browser,
+    "https://www.ticketlink.co.kr/performance/concert",
+    async (page) => {
+      await page.waitForTimeout(5000);
+      return page.evaluate(() => {
+        const items: TicketInfo[] = [];
+        document
+          .querySelectorAll(
+            "[class*=product] li, [class*=list] li, [class*=item], [class*=performance] li, [class*=card], [class*=event] li, [class*=ranking] li"
+          )
+          .forEach((el, i) => {
+            const anchor = el.querySelector("a");
+            const titleEl =
+              el.querySelector(
+                "[class*=name], [class*=title], [class*=tit], [class*=prd]"
+              ) || anchor;
+            const title =
+              titleEl?.textContent?.trim() ||
+              anchor?.getAttribute("title")?.trim() ||
+              el.querySelector("img")?.getAttribute("alt")?.trim();
+            if (!title || title.length < 2) return;
 
-  // 티켓링크 API 시도
-  const apiUrls = [
-    "https://www.ticketlink.co.kr/api/product/list?categoryId=1&subCategoryId=1&page=1&size=20&sort=popular",
-    "https://www.ticketlink.co.kr/api/product/list?categoryId=1&subCategoryId=1&page=1&size=20&sort=recent",
-  ];
+            const href = anchor?.getAttribute("href") || "";
+            const url = href.startsWith("http")
+              ? href
+              : href
+                ? `https://www.ticketlink.co.kr${href}`
+                : "https://www.ticketlink.co.kr";
 
-  for (const apiUrl of apiUrls) {
-    try {
-      const res = await fetch(apiUrl, {
-        headers: {
-          "User-Agent": UA,
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(15000),
-      });
+            const dateEl = el.querySelector(
+              "[class*=date], [class*=period], [class*=day]"
+            );
+            const dateText = dateEl?.textContent?.trim() || "";
 
-      if (res.ok) {
-        const json = await res.json();
-        const items =
-          json?.data?.content ||
-          json?.data?.list ||
-          json?.result?.content ||
-          json?.result?.list ||
-          json?.items ||
-          json?.list ||
-          [];
+            const placeEl = el.querySelector(
+              "[class*=place], [class*=venue], [class*=hall]"
+            );
+            const venue = placeEl?.textContent?.trim() || "";
 
-        for (const item of items) {
-          const title =
-            item.productName || item.name || item.title || item.goodsName;
-          if (!title) continue;
+            const img = el.querySelector("img")?.getAttribute("src") || "";
 
-          const productId =
-            item.productId || item.id || item.productNo || item.code || "";
-          const url = productId
-            ? `https://www.ticketlink.co.kr/product/${productId}`
-            : "https://www.ticketlink.co.kr";
-
-          const startDate =
-            item.playStartDate ||
-            item.startDate ||
-            item.openDate ||
-            item.date ||
-            "";
-          const dates = parseKoreanDate(startDate);
-          if (dates.length === 0 && startDate) {
-            const isoMatch = startDate.match(/^(\d{4}-\d{2}-\d{2})/);
-            if (isoMatch) dates.push(isoMatch[1]);
-          }
-
-          const venue =
-            item.placeName || item.venueName || item.venue || item.place || "";
-          const img =
-            item.posterUrl ||
-            item.imageUrl ||
-            item.posterImageUrl ||
-            item.poster ||
-            "";
-
-          for (const date of dates) {
-            tickets.push({
-              id: `ticketlink-${tickets.length}`,
+            items.push({
+              id: `ticketlink-${i}`,
               title: title.replace(/\s+/g, " "),
-              date,
+              date: dateText,
               venue: venue || undefined,
-              platform: "ticketlink",
+              platform: "ticketlink" as const,
               url,
-              imageUrl: img || undefined,
+              imageUrl: img
+                ? img.startsWith("http")
+                  ? img
+                  : `https://www.ticketlink.co.kr${img}`
+                : undefined,
             });
-          }
-        }
+          });
+        return items;
+      });
+    }
+  );
 
-        if (tickets.length > 0) {
-          console.log(`[티켓링크] ${tickets.length}개 수집 (API)`);
-          return tickets;
-        }
-      }
-    } catch {
-      // API 실패 시 HTML 파싱으로 폴백
+  const result = postProcess(tickets, "ticketlink");
+  console.log(`[티켓링크] ${result.length}개 수집`);
+  return result;
+}
+
+// ─── 후처리: 날짜 파싱 + 필터링 ────────────────────────
+function postProcess(
+  raw: TicketInfo[],
+  platform: TicketInfo["platform"]
+): TicketInfo[] {
+  const result: TicketInfo[] = [];
+
+  for (const item of raw) {
+    const dates = parseKoreanDate(item.date);
+    if (dates.length === 0) continue;
+
+    for (const date of dates) {
+      result.push({
+        ...item,
+        id: `${platform}-${result.length}`,
+        date,
+      });
     }
   }
 
-  // HTML 폴백 - 콘서트 카테고리 페이지
-  const htmlUrls = [
-    "https://www.ticketlink.co.kr/performance/concert",
-    "https://www.ticketlink.co.kr/performance/concert?page=1",
-  ];
-
-  for (const pageUrl of htmlUrls) {
-    const html = await fetchWithRetry(pageUrl);
-    if (!html) continue;
-
-    const $ = cheerio.load(html);
-
-    $(
-      ".product_list li, .performance_list li, .list_item li, .event_list li, .ranking_list li"
-    ).each((_i, el) => {
-      const $el = $(el);
-      const title =
-        $el.find(".prd_name, .tit, .product_name, .event_name, .name").first().text().trim() ||
-        $el.find("a").first().attr("title")?.trim() ||
-        $el.find("a img").attr("alt")?.trim();
-      if (!title) return;
-
-      const href = $el.find("a").first().attr("href") || "";
-      const url = href.startsWith("http")
-        ? href
-        : href
-          ? `https://www.ticketlink.co.kr${href}`
-          : "https://www.ticketlink.co.kr";
-
-      const dateText =
-        $el
-          .find(".prd_date, .date, .period, .show_date, .event_date")
-          .first()
-          .text()
-          .trim() || "";
-      const venue =
-        $el
-          .find(".prd_place, .place, .venue, .show_place, .event_place")
-          .first()
-          .text()
-          .trim() || "";
-      const img = $el.find("img").first().attr("src") || "";
-
-      const dates = parseKoreanDate(dateText);
-      for (const date of dates) {
-        tickets.push({
-          id: `ticketlink-${tickets.length}`,
-          title: title.replace(/\s+/g, " "),
-          date,
-          venue: venue || undefined,
-          platform: "ticketlink",
-          url,
-          imageUrl: img
-            ? img.startsWith("http")
-              ? img
-              : `https://www.ticketlink.co.kr${img}`
-            : undefined,
-        });
-      }
-    });
-
-    if (tickets.length > 0) break;
-  }
-
-  console.log(`[티켓링크] ${tickets.length}개 수집`);
-  return tickets;
+  return result;
 }
 
 // ─── 메인 ───────────────────────────────────────────────
 async function main() {
   console.log("=== 콘서트 티켓 스크래핑 시작 ===\n");
 
-  const results = await Promise.allSettled([
-    scrapeMelon(),
-    scrapeYes24(),
-    scrapeInterpark(),
-    scrapeNol(),
-    scrapeTicketlink(),
-  ]);
+  const executablePath =
+    process.env.PLAYWRIGHT_CHROMIUM_PATH ||
+    process.env.CHROME_PATH ||
+    undefined;
 
-  const allTickets: TicketInfo[] = [];
-  const platformNames = ["멜론티켓", "Yes24", "인터파크", "놀 티켓", "티켓링크"];
-
-  results.forEach((result, i) => {
-    if (result.status === "fulfilled") {
-      allTickets.push(...result.value);
-    } else {
-      console.error(`${platformNames[i]} 실패:`, result.reason);
-    }
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
   });
 
-  const seen = new Set<string>();
-  const unique = allTickets.filter((t) => {
-    const key = `${t.platform}-${t.title}-${t.date}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  try {
+    const results = await Promise.allSettled([
+      scrapeMelon(browser),
+      scrapeYes24(browser),
+      scrapeInterpark(browser),
+      scrapeNol(browser),
+      scrapeTicketlink(browser),
+    ]);
 
-  unique.sort((a, b) => a.date.localeCompare(b.date));
+    const allTickets: TicketInfo[] = [];
+    const platformNames = ["멜론티켓", "Yes24", "인터파크", "놀 티켓", "티켓링크"];
 
-  const outDir = path.join(process.cwd(), "public");
-  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        allTickets.push(...result.value);
+      } else {
+        console.error(`${platformNames[i]} 실패:`, result.reason);
+      }
+    });
 
-  const outPath = path.join(outDir, "tickets.json");
-  fs.writeFileSync(
-    outPath,
-    JSON.stringify(
-      {
-        lastUpdated: new Date().toISOString(),
-        count: unique.length,
-        tickets: unique,
-      },
-      null,
-      2
-    )
-  );
+    const seen = new Set<string>();
+    const unique = allTickets.filter((t) => {
+      const key = `${t.platform}-${t.title}-${t.date}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-  console.log(`\n=== 완료: ${unique.length}개 티켓 → ${outPath} ===`);
+    unique.sort((a, b) => a.date.localeCompare(b.date));
+
+    const outDir = path.join(process.cwd(), "public");
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    const outPath = path.join(outDir, "tickets.json");
+    fs.writeFileSync(
+      outPath,
+      JSON.stringify(
+        {
+          lastUpdated: new Date().toISOString(),
+          count: unique.length,
+          tickets: unique,
+        },
+        null,
+        2
+      )
+    );
+
+    console.log(`\n=== 완료: ${unique.length}개 티켓 → ${outPath} ===`);
+  } finally {
+    await browser.close();
+  }
 }
 
 main().catch((e) => {
