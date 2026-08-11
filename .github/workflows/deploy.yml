@@ -34,6 +34,7 @@ jobs:
 
       - name: Scrape ticket data
         run: npx tsx scripts/scrape.ts
+        timeout-minutes: 3
         env:
           PLAYWRIGHT_CHROMIUM_PATH: ""
         continue-on-error: true

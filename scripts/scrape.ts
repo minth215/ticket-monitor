@@ -378,14 +378,7 @@ async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
       { waitUntil: "domcontentloaded", timeout: 30000 }
     );
 
-    // Wait for any redirects to settle
-    await page.waitForTimeout(3000);
-    try {
-      await page.waitForLoadState("networkidle", { timeout: 10000 });
-    } catch {
-      // networkidle may not be reached
-    }
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(8000);
 
     const currentUrl = page.url();
     console.log(`  [Debug] Ticketlink final URL: ${currentUrl}`);
@@ -592,6 +585,12 @@ async function main() {
 process.on("unhandledRejection", (reason) => {
   console.warn("Unhandled rejection (suppressed):", reason);
 });
+
+const TIMEOUT_MS = 120_000;
+setTimeout(() => {
+  console.error(`스크래핑 타임아웃 (${TIMEOUT_MS / 1000}초)`);
+  process.exit(1);
+}, TIMEOUT_MS).unref();
 
 main().catch((e) => {
   console.error("스크래핑 실패:", e);
