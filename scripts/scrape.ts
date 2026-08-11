@@ -312,9 +312,11 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     // Intercept API responses — the SPA redirects before DOM is scrapeable,
     // so capture the raw JSON data from API calls instead
     const apiResponses: { url: string; data: unknown }[] = [];
+    const allTraffic: { url: string; status: number; contentType: string }[] = [];
     page.on("response", async (response) => {
       const url = response.url();
       const contentType = response.headers()["content-type"] || "";
+      allTraffic.push({ url, status: response.status(), contentType });
       if (contentType.includes("json") && response.status() === 200) {
         try {
           const data = await response.json();
@@ -461,6 +463,21 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
         }
       }
     } catch { /* context destroyed — expected */ }
+
+    // Dump the full network traffic map (any status/content-type) so we can spot
+    // listing/ranking endpoints that our json+200 filter above might be missing
+    const seenTraffic = new Set<string>();
+    const trafficSummary: string[] = [];
+    for (const t of allTraffic) {
+      const key = `${t.status} ${t.url}`;
+      if (seenTraffic.has(key)) continue;
+      seenTraffic.add(key);
+      if (t.url.includes("mapi.ticketlink") || t.url.includes("ticketlink.co.kr/")) {
+        trafficSummary.push(`${t.status} [${t.contentType.split(";")[0]}] ${t.url.substring(0, 120)}`);
+      }
+    }
+    console.log(`  [Debug] Ticketlink full traffic (${trafficSummary.length} unique ticketlink URLs):`);
+    for (const line of trafficSummary) console.log(`    ${line}`);
 
     console.log(`  [Debug] Ticketlink ${targetUrl}: no tickets extracted`);
     await page.close();
