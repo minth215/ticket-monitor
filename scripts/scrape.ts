@@ -301,165 +301,240 @@ async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
 }
 
 // ─── 티켓링크 ───────────────────────────────────────────
+async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promise<TicketInfo[]> {
+  let page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
+
+  try {
+    await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+    console.log(`  [Debug] Ticketlink trying: ${targetUrl}`);
+
+    // Try networkidle (waits for SPA fetch calls to settle)
+    let loaded = false;
+    try {
+      await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 45000 });
+      loaded = true;
+    } catch {
+      console.log(`  [Debug] Ticketlink networkidle timed out, retrying with commit`);
+      await page.close();
+      page = await browser.newPage();
+      page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
+      await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+      try {
+        await page.goto(targetUrl, { waitUntil: "commit", timeout: 30000 });
+        loaded = true;
+      } catch (e2) {
+        console.warn(`  [Debug] Ticketlink commit also failed:`, (e2 as Error).message);
+      }
+    }
+
+    if (!loaded) {
+      await page.close();
+      return [];
+    }
+
+    // Wait for SPA content to render — poll until body has meaningful text
+    try {
+      await page.waitForFunction(
+        () => (document.body?.innerText?.length || 0) > 200,
+        { timeout: 25000 }
+      );
+      console.log(`  [Debug] Ticketlink body content appeared`);
+    } catch {
+      console.log(`  [Debug] Ticketlink body content did not appear within 25s`);
+    }
+
+    // Scroll to trigger lazy loading
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate((step) => {
+        const h = document.body?.scrollHeight || 0;
+        if (h > 0) window.scrollTo(0, h * (step + 1) / 4);
+      }, i);
+      await page.waitForTimeout(1500);
+    }
+
+    // Diagnostic: check HTML structure
+    const debug = await page.evaluate(() => {
+      const bodyText = document.body?.innerText || "";
+      const htmlLen = document.documentElement?.outerHTML?.length || 0;
+      const iframes = document.querySelectorAll("iframe").length;
+      const allEls = document.querySelectorAll("*").length;
+      const links = document.querySelectorAll("a").length;
+      const imgs = document.querySelectorAll("img").length;
+      return { bodyLen: bodyText.length, htmlLen, iframes, allEls, links, imgs,
+               snippet: bodyText.substring(0, 500).replace(/\n/g, "\\n") };
+    });
+    console.log(`  [Debug] Ticketlink ${targetUrl} → bodyLen=${debug.bodyLen}, htmlLen=${debug.htmlLen}, iframes=${debug.iframes}, elements=${debug.allEls}, links=${debug.links}, imgs=${debug.imgs}`);
+    console.log(`  [Debug] Ticketlink snippet: ${debug.snippet}`);
+
+    // If body is empty but HTML is large, content might be in iframes
+    if (debug.bodyLen < 200 && debug.iframes > 0) {
+      console.log(`  [Debug] Ticketlink checking iframes...`);
+      const iframeTexts = await page.evaluate(() => {
+        const results: string[] = [];
+        document.querySelectorAll("iframe").forEach((iframe) => {
+          try {
+            const doc = iframe.contentDocument;
+            if (doc) results.push((doc.body?.innerText || "").substring(0, 300));
+          } catch { /* cross-origin */ }
+        });
+        return results;
+      });
+      console.log(`  [Debug] Ticketlink iframe texts:`, iframeTexts.map(t => t.substring(0, 100)));
+    }
+
+    // Log HTML structure if body is empty for diagnosis
+    if (debug.bodyLen < 100) {
+      const htmlSnippet = await page.evaluate(() =>
+        (document.documentElement?.outerHTML || "").substring(0, 2000)
+      );
+      console.log(`  [Debug] Ticketlink HTML head: ${htmlSnippet.replace(/\n/g, "\\n").substring(0, 1500)}`);
+    }
+
+    const bodyText = await page.evaluate(() => document.body?.innerText || "");
+    const hasError = bodyText.includes("페이지를 찾을 수 없습니다");
+
+    if (hasError || bodyText.length < 500) {
+      console.log(`  [Debug] Ticketlink skipping ${targetUrl}`);
+      await page.close();
+      return [];
+    }
+
+    // Strategy 1: Find product links
+    const linkResults = await page.evaluate(() => {
+      const results: { title: string; date: string; url: string; img: string }[] = [];
+      const allLinks = Array.from(document.querySelectorAll("a"));
+      const perfLinks = allLinks.filter((a) => {
+        const href = a.getAttribute("href") || "";
+        return /\/product\/\d+/.test(href);
+      });
+
+      const seen = new Set<string>();
+      perfLinks.filter((a) => {
+        const href = a.getAttribute("href") || "";
+        if (seen.has(href)) return false;
+        seen.add(href);
+        return true;
+      }).forEach((a) => {
+        const container = a.closest("[class*=item], [class*=rank], [class*=card], [class*=product], [class*=event], [class*=list], li")
+                         || a.parentElement;
+        const containerTextLen = container?.textContent?.length || 0;
+        const useContainer = container && containerTextLen < 500;
+        const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
+
+        let title: string | null = null;
+        const titleAttr = a.getAttribute("title")?.trim();
+        if (titleAttr && titleAttr.length > 2) title = titleAttr;
+        if (!title && imgEl) {
+          const alt = imgEl.getAttribute("alt")?.trim();
+          if (alt && alt.length > 2) title = alt;
+        }
+        if (!title) {
+          const linkText = a.textContent?.trim();
+          if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
+        }
+        if (!title) return;
+
+        const href = a.getAttribute("href") || "";
+        const url = href.startsWith("http") ? href : `https://www.ticketlink.co.kr${href}`;
+        const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
+        const img = imgEl?.getAttribute("src") || "";
+
+        results.push({
+          title: title.replace(/\s+/g, " ").substring(0, 200),
+          date: dateText,
+          url,
+          img: img ? (img.startsWith("http") ? img : `https://www.ticketlink.co.kr${img}`) : "",
+        });
+      });
+      return results;
+    });
+
+    console.log(`  [Debug] Ticketlink link strategy: ${linkResults.length} items`);
+    if (linkResults.length > 0) {
+      console.log(`  [Debug] Ticketlink link samples:`, linkResults.slice(0, 5).map(l => ({
+        title: l.title.substring(0, 50), url: l.url.substring(0, 60),
+      })));
+      const linkTickets: TicketInfo[] = linkResults.map((item, i) => ({
+        id: `ticketlink-${i}`,
+        title: item.title,
+        date: item.date,
+        platform: "ticketlink" as const,
+        url: item.url,
+        imageUrl: item.img || undefined,
+      }));
+      const linkResult = postProcess(linkTickets, "ticketlink");
+      if (linkResult.length > 0) {
+        console.log(`[티켓링크] ${linkTickets.length}개 추출 → ${linkResult.length}개 (날짜 파싱 후)`);
+        await page.close();
+        return linkResult;
+      }
+      console.log(`  [Debug] Ticketlink ${linkResults.length} link items → 0 after postProcess, trying text parsing`);
+    }
+
+    // Strategy 2: Body text parsing
+    const tickets: TicketInfo[] = [];
+    const lines = bodyText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    const navSkip = /^(뮤지컬|콘서트|연극|클래식|무용|전시|스포츠|가족|어린이|아동|랭킹|이벤트|티켓링크|로그인|마이페이지|검색|배너|닫기|공연전시|예매|안내|홈|전체|카테고리|더보기|클래식·무용|아동·가족|한국어|English)$/;
+
+    for (let i = 0; i < lines.length - 1; i++) {
+      const dateMatch = lines[i].match(/(\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*[~\-]\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2})/);
+      if (dateMatch && i > 0) {
+        let titleIdx = i - 1;
+        while (titleIdx >= 0 && (/^\d{1,3}$/.test(lines[titleIdx]) || navSkip.test(lines[titleIdx]) || lines[titleIdx].length < 2)) {
+          titleIdx--;
+        }
+        if (titleIdx < 0) continue;
+        const title = lines[titleIdx];
+        if (title.length > 300 || navSkip.test(title)) continue;
+
+        const venueIdx = i + 1;
+        const venue = (venueIdx < lines.length && !navSkip.test(lines[venueIdx]) && !/^\d{1,3}$/.test(lines[venueIdx]))
+          ? lines[venueIdx] : undefined;
+
+        const parsedDate = dateMatch[1].replace(/[./]/g, "-");
+        tickets.push({
+          id: `ticketlink-${tickets.length}`,
+          title: title.replace(/\s+/g, " "),
+          date: parsedDate,
+          venue,
+          platform: "ticketlink",
+          url: targetUrl,
+        });
+      }
+    }
+
+    if (tickets.length > 0) {
+      console.log(`  [Debug] Ticketlink text-parsed sample:`, tickets.slice(0, 3).map(t => ({
+        title: t.title.substring(0, 50),
+        date: t.date,
+      })));
+      console.log(`[티켓링크] ${tickets.length}개 추출 (텍스트 파싱)`);
+      await page.close();
+      return tickets;
+    }
+
+    console.log(`  [Debug] Ticketlink ${targetUrl}: no tickets extracted`);
+    await page.close();
+    return [];
+  } catch (e) {
+    console.warn(`  [티켓링크] ${targetUrl} error:`, (e as Error).message);
+    await page.close();
+    return [];
+  }
+}
+
 async function scrapeTicketlink(browser: Browser): Promise<TicketInfo[]> {
   console.log("[티켓링크] 스크래핑 시작...");
 
-  // /performance/16 = concert genre page (discovered from site nav links)
   const candidateUrls = [
     "https://www.ticketlink.co.kr/performance/16",
     "https://www.ticketlink.co.kr/performance/14",
   ];
 
   for (const targetUrl of candidateUrls) {
-    const page = await browser.newPage();
-    page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
-
-    try {
-      await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
-      console.log(`  [Debug] Ticketlink trying: ${targetUrl}`);
-
-      await page.goto(targetUrl, { waitUntil: "commit", timeout: 30000 });
-      await page.waitForTimeout(12000);
-
-      for (let i = 0; i < 4; i++) {
-        await page.evaluate((step) => {
-          const h = document.body?.scrollHeight || 0;
-          if (h > 0) window.scrollTo(0, h * (step + 1) / 4);
-        }, i);
-        await page.waitForTimeout(2000);
-      }
-
-      const bodyText = await page.evaluate(() => document.body?.innerText || "");
-      const hasError = bodyText.includes("페이지를 찾을 수 없습니다");
-      console.log(`  [Debug] Ticketlink ${targetUrl} → bodyLen=${bodyText.length}, error=${hasError}`);
-      console.log(`  [Debug] Ticketlink snippet: ${bodyText.substring(0, 500).replace(/\n/g, "\\n")}`);
-
-      if (hasError || bodyText.length < 500) {
-        console.log(`  [Debug] Ticketlink skipping ${targetUrl}`);
-        await page.close();
-        continue;
-      }
-
-      // Strategy 1: Find product links
-      const linkResults = await page.evaluate(() => {
-        const results: { title: string; date: string; url: string; img: string }[] = [];
-        const allLinks = Array.from(document.querySelectorAll("a"));
-        const perfLinks = allLinks.filter((a) => {
-          const href = a.getAttribute("href") || "";
-          return /\/product\/\d+/.test(href);
-        });
-
-        const seen = new Set<string>();
-        perfLinks.filter((a) => {
-          const href = a.getAttribute("href") || "";
-          if (seen.has(href)) return false;
-          seen.add(href);
-          return true;
-        }).forEach((a) => {
-          const container = a.closest("[class*=item], [class*=rank], [class*=card], [class*=product], [class*=event], [class*=list], li")
-                           || a.parentElement;
-          const containerTextLen = container?.textContent?.length || 0;
-          const useContainer = container && containerTextLen < 500;
-          const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
-
-          let title: string | null = null;
-          const titleAttr = a.getAttribute("title")?.trim();
-          if (titleAttr && titleAttr.length > 2) title = titleAttr;
-          if (!title && imgEl) {
-            const alt = imgEl.getAttribute("alt")?.trim();
-            if (alt && alt.length > 2) title = alt;
-          }
-          if (!title) {
-            const linkText = a.textContent?.trim();
-            if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
-          }
-          if (!title) return;
-
-          const href = a.getAttribute("href") || "";
-          const url = href.startsWith("http") ? href : `https://www.ticketlink.co.kr${href}`;
-          const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
-          const img = imgEl?.getAttribute("src") || "";
-
-          results.push({
-            title: title.replace(/\s+/g, " ").substring(0, 200),
-            date: dateText,
-            url,
-            img: img ? (img.startsWith("http") ? img : `https://www.ticketlink.co.kr${img}`) : "",
-          });
-        });
-        return results;
-      });
-
-      console.log(`  [Debug] Ticketlink link strategy: ${linkResults.length} items`);
-      if (linkResults.length > 0) {
-        console.log(`  [Debug] Ticketlink link samples:`, linkResults.slice(0, 5).map(l => ({
-          title: l.title.substring(0, 50), url: l.url.substring(0, 60),
-        })));
-        const linkTickets: TicketInfo[] = linkResults.map((item, i) => ({
-          id: `ticketlink-${i}`,
-          title: item.title,
-          date: item.date,
-          platform: "ticketlink" as const,
-          url: item.url,
-          imageUrl: item.img || undefined,
-        }));
-        const linkResult = postProcess(linkTickets, "ticketlink");
-        if (linkResult.length > 0) {
-          console.log(`[티켓링크] ${linkTickets.length}개 추출 → ${linkResult.length}개 (날짜 파싱 후)`);
-          await page.close();
-          return linkResult;
-        }
-        console.log(`  [Debug] Ticketlink ${linkResults.length} link items → 0 after postProcess, trying text parsing`);
-      }
-
-      // Strategy 2: Body text parsing
-      const tickets: TicketInfo[] = [];
-      const lines = bodyText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-      const navSkip = /^(뮤지컬|콘서트|연극|클래식|무용|전시|스포츠|가족|어린이|아동|랭킹|이벤트|티켓링크|로그인|마이페이지|검색|배너|닫기|공연전시|예매|안내|홈|전체|카테고리|더보기|클래식·무용|아동·가족|한국어|English)$/;
-
-      for (let i = 0; i < lines.length - 1; i++) {
-        const dateMatch = lines[i].match(/(\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*[~\-]\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2})/);
-        if (dateMatch && i > 0) {
-          let titleIdx = i - 1;
-          while (titleIdx >= 0 && (/^\d{1,3}$/.test(lines[titleIdx]) || navSkip.test(lines[titleIdx]) || lines[titleIdx].length < 2)) {
-            titleIdx--;
-          }
-          if (titleIdx < 0) continue;
-          const title = lines[titleIdx];
-          if (title.length > 300 || navSkip.test(title)) continue;
-
-          const venueIdx = i + 1;
-          const venue = (venueIdx < lines.length && !navSkip.test(lines[venueIdx]) && !/^\d{1,3}$/.test(lines[venueIdx]))
-            ? lines[venueIdx] : undefined;
-
-          const parsedDate = dateMatch[1].replace(/[./]/g, "-");
-          tickets.push({
-            id: `ticketlink-${tickets.length}`,
-            title: title.replace(/\s+/g, " "),
-            date: parsedDate,
-            venue,
-            platform: "ticketlink",
-            url: targetUrl,
-          });
-        }
-      }
-
-      if (tickets.length > 0) {
-        console.log(`  [Debug] Ticketlink text-parsed sample:`, tickets.slice(0, 3).map(t => ({
-          title: t.title.substring(0, 50),
-          date: t.date,
-        })));
-        console.log(`[티켓링크] ${tickets.length}개 추출 (텍스트 파싱)`);
-        await page.close();
-        return tickets;
-      }
-
-      console.log(`  [Debug] Ticketlink ${targetUrl}: no tickets extracted, trying next URL`);
-      await page.close();
-    } catch (e) {
-      console.warn(`  [티켓링크] ${targetUrl} error:`, (e as Error).message);
-      await page.close();
-    }
+    const result = await scrapeTicketlinkPage(browser, targetUrl);
+    if (result.length > 0) return result;
   }
 
   console.log(`[티켓링크] 0개 추출`);
