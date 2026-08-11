@@ -335,9 +335,46 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     await page.waitForTimeout(10000);
 
     console.log(`  [Debug] Ticketlink captured ${apiResponses.length} JSON API responses`);
+    const seenUrls = new Set<string>();
     for (const resp of apiResponses) {
-      const dataStr = JSON.stringify(resp.data).substring(0, 200);
+      if (seenUrls.has(resp.url)) continue;
+      seenUrls.add(resp.url);
+      // Log gnb (category nav) fully to discover the codeName used for the concert genre
+      const isGnb = resp.url.includes("/gnb");
+      const dataStr = JSON.stringify(resp.data).substring(0, isGnb ? 3000 : 200);
       console.log(`  [Debug] Ticketlink API: ${resp.url.substring(0, 100)} → ${dataStr}`);
+    }
+
+    // Try to discover the concert category code from the gnb response and query
+    // the category listing API directly, bypassing SPA routing entirely
+    const gnbResp = apiResponses.find((r) => r.url.includes("/gnb"));
+    if (gnbResp) {
+      const gnbArrays = findArraysInObject(gnbResp.data);
+      const codeCandidates: string[] = [];
+      for (const arr of gnbArrays) {
+        for (const item of arr) {
+          if (typeof item !== "object" || !item) continue;
+          const obj = item as Record<string, unknown>;
+          const nameVal = String(findField(obj, ["categoryNameKor", "name", "categoryName"]) || "");
+          if (/콘서트|공연|Concert/i.test(nameVal)) {
+            const code = findField(obj, ["codeName", "categoryCode", "code", "categoryId"]);
+            if (code !== null && code !== undefined) codeCandidates.push(String(code));
+          }
+        }
+      }
+      console.log(`  [Debug] Ticketlink discovered category codes:`, codeCandidates);
+      for (const code of codeCandidates.slice(0, 3)) {
+        try {
+          const apiUrl = `https://mapi.ticketlink.co.kr/mapi/webMain/category?codeName=${encodeURIComponent(code)}`;
+          const directResp = await page.request.get(apiUrl);
+          const directData = await directResp.json();
+          const dataStr = JSON.stringify(directData).substring(0, 500);
+          console.log(`  [Debug] Ticketlink direct category query (${code}) → ${dataStr}`);
+          apiResponses.push({ url: apiUrl, data: directData });
+        } catch (e) {
+          console.log(`  [Debug] Ticketlink direct category query (${code}) failed:`, (e as Error).message);
+        }
+      }
     }
 
     // Look for concert listing data in API responses
