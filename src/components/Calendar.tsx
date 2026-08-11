@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TicketInfo, Platform, PLATFORM_LABELS, PLATFORM_COLORS } from "@/lib/types";
 import { generateSampleData } from "@/lib/sample-data";
 import { TicketModal } from "./TicketModal";
@@ -11,22 +11,49 @@ export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState<TicketInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<"live" | "sample">("sample");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<Platform>>(
     new Set(["melon", "yes24", "interpark", "nol"])
   );
 
+  const allTicketsRef = useRef<TicketInfo[]>([]);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const allTickets = useMemo(() => generateSampleData(), []);
-
   useEffect(() => {
-    const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const filtered = allTickets.filter((t) => t.date.startsWith(prefix));
-    setTickets(filtered);
-    setLoading(false);
-  }, [year, month, allTickets]);
+    let cancelled = false;
+    async function loadTickets() {
+      setLoading(true);
+      try {
+        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+        const res = await fetch(`${basePath}/tickets.json`);
+        if (!res.ok) throw new Error("No scraped data");
+        const data = await res.json();
+        if (!cancelled && data.tickets?.length > 0) {
+          allTicketsRef.current = data.tickets;
+          setLastUpdated(data.lastUpdated || null);
+          setDataSource("live");
+        } else {
+          throw new Error("Empty data");
+        }
+      } catch {
+        if (!cancelled) {
+          allTicketsRef.current = generateSampleData();
+          setDataSource("sample");
+        }
+      }
+      if (!cancelled) {
+        const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+        setTickets(allTicketsRef.current.filter((t) => t.date.startsWith(prefix)));
+        setLoading(false);
+      }
+    }
+    loadTickets();
+    return () => { cancelled = true; };
+  }, [year, month]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -286,8 +313,17 @@ export function Calendar() {
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <span>* 샘플 데이터가 표시됩니다. 실제 스크래핑은 각 플랫폼 구조 변경에 따라 업데이트가 필요할 수 있습니다.</span>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400">
+        {dataSource === "sample" ? (
+          <span>* 샘플 데이터가 표시됩니다. 스크래핑 데이터가 준비되면 자동으로 전환됩니다.</span>
+        ) : (
+          <span>* 멜론티켓, Yes24, 인터파크, 놀 티켓에서 수집된 실제 데이터입니다.</span>
+        )}
+        {lastUpdated && (
+          <span>
+            마지막 업데이트: {new Date(lastUpdated).toLocaleString("ko-KR")}
+          </span>
+        )}
       </div>
 
       {/* Modal */}
