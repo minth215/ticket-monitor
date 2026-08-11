@@ -8,7 +8,7 @@ interface TicketInfo {
   date: string;
   time?: string;
   venue?: string;
-  platform: "melon" | "yes24" | "interpark" | "ticketlink";
+  platform: "melon" | "yes24" | "nol" | "ticketlink";
   url: string;
   imageUrl?: string;
 }
@@ -177,123 +177,127 @@ async function scrapeYes24(browser: Browser): Promise<TicketInfo[]> {
   }
 }
 
-// ─── 인터파크 ───────────────────────────────────────────
-async function scrapeInterpark(browser: Browser): Promise<TicketInfo[]> {
-  console.log("[인터파크] 스크래핑 시작...");
+// ─── 놀티켓 ────────────────────────────────────────────
+async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
+  console.log("[놀티켓] 스크래핑 시작...");
 
-  const page = await browser.newPage();
-  page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
+  const candidateUrls = [
+    "https://nolticket.com/contents/genre/concert",
+    "https://tickets.interpark.com/contents/genre/concert",
+  ];
 
-  try {
-    await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
-    await page.goto(
-      "https://tickets.interpark.com/contents/genre/concert",
-      { waitUntil: "domcontentloaded", timeout: 30000 }
-    );
-    await page.waitForTimeout(8000);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
-    await page.waitForTimeout(2000);
+  for (const targetUrl of candidateUrls) {
+    const page = await browser.newPage();
+    page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
-    const items = await page.evaluate(() => {
-      const results: { title: string; date: string; url: string; img: string }[] = [];
+    try {
+      await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
+      console.log(`  [Debug] Nol trying: ${targetUrl}`);
 
-      // Find product links - /goods/NNNNN or /product/NNNNN
-      const productLinks = Array.from(document.querySelectorAll("a")).filter((a) => {
-        const href = a.getAttribute("href") || "";
-        return /\/(goods|product)\/\d+/.test(href);
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.waitForTimeout(8000);
+      await page.evaluate(() => {
+        const h = document.body?.scrollHeight || 0;
+        if (h > 0) window.scrollTo(0, h / 2);
       });
+      await page.waitForTimeout(2000);
 
-      const seen = new Set<string>();
-      const uniqueLinks = productLinks.filter((a) => {
-        const href = a.getAttribute("href") || "";
-        if (seen.has(href)) return false;
-        seen.add(href);
-        return true;
-      });
+      const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
+      console.log(`  [Debug] Nol ${targetUrl} bodyLen=${bodyLen}`);
+      if (bodyLen < 200) {
+        console.log(`  [Debug] Nol skipping ${targetUrl} (too short)`);
+        await page.close();
+        continue;
+      }
 
-      uniqueLinks.forEach((a) => {
-        // CRITICAL: Use CSS closest() with tight selectors to find the RIGHT container
-        // Stop at elements with class containing 'item', 'card', 'product', or LI tags
-        // But NOT huge wrapper divs
-        const container = a.closest("[class*=item], [class*=card], [class*=product], [class*=rank], [class*=content] > *, li")
-                         || a.parentElement;
+      const items = await page.evaluate(() => {
+        const results: { title: string; date: string; url: string; img: string }[] = [];
+        const baseUrl = location.origin;
 
-        // Verify container is not too large (shared by multiple items)
-        const containerTextLen = container?.textContent?.length || 0;
-        const useContainer = container && containerTextLen < 500;
-
-        // Title: prefer link's own content, then small container, then image alt
-        const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
-
-        let title: string | null = null;
-
-        // 1) Link's title attribute
-        const titleAttr = a.getAttribute("title")?.trim();
-        if (titleAttr && titleAttr.length > 2 && titleAttr.length < 200) title = titleAttr;
-
-        // 2) Image alt text (often has the concert name)
-        if (!title && imgEl) {
-          const alt = imgEl.getAttribute("alt")?.trim();
-          if (alt && alt.length > 2 && alt.length < 200) title = alt;
-        }
-
-        // 3) Link text (if not too long/short)
-        if (!title) {
-          const linkText = a.textContent?.trim();
-          if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
-        }
-
-        // 4) Container title elements (only if container is small)
-        if (!title && useContainer) {
-          const titleEl = container?.querySelector("[class*=name], [class*=title], [class*=tit], strong, h3, h4");
-          const elText = titleEl?.textContent?.trim();
-          if (elText && elText.length > 2 && elText.length < 200) title = elText;
-        }
-
-        if (!title) return;
-
-        const href = a.getAttribute("href") || "";
-        const url = href.startsWith("http") ? href : `https://tickets.interpark.com${href}`;
-
-        // Date: from the container text (only if container is small enough)
-        const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
-        const img = imgEl?.getAttribute("src") || "";
-
-        results.push({
-          title: title.replace(/\s+/g, " ").substring(0, 200),
-          date: dateText,
-          url,
-          img: img || "",
+        const productLinks = Array.from(document.querySelectorAll("a")).filter((a) => {
+          const href = a.getAttribute("href") || "";
+          return /\/(goods|product)\/\d+/.test(href);
         });
+
+        const seen = new Set<string>();
+        const uniqueLinks = productLinks.filter((a) => {
+          const href = a.getAttribute("href") || "";
+          if (seen.has(href)) return false;
+          seen.add(href);
+          return true;
+        });
+
+        uniqueLinks.forEach((a) => {
+          const container = a.closest("[class*=item], [class*=card], [class*=product], [class*=rank], [class*=content] > *, li")
+                           || a.parentElement;
+          const containerTextLen = container?.textContent?.length || 0;
+          const useContainer = container && containerTextLen < 500;
+          const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
+
+          let title: string | null = null;
+          const titleAttr = a.getAttribute("title")?.trim();
+          if (titleAttr && titleAttr.length > 2 && titleAttr.length < 200) title = titleAttr;
+          if (!title && imgEl) {
+            const alt = imgEl.getAttribute("alt")?.trim();
+            if (alt && alt.length > 2 && alt.length < 200) title = alt;
+          }
+          if (!title) {
+            const linkText = a.textContent?.trim();
+            if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
+          }
+          if (!title && useContainer) {
+            const titleEl = container?.querySelector("[class*=name], [class*=title], [class*=tit], strong, h3, h4");
+            const elText = titleEl?.textContent?.trim();
+            if (elText && elText.length > 2 && elText.length < 200) title = elText;
+          }
+          if (!title) return;
+
+          const href = a.getAttribute("href") || "";
+          const url = href.startsWith("http") ? href : `${baseUrl}${href}`;
+          const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
+          const img = imgEl?.getAttribute("src") || "";
+
+          results.push({
+            title: title.replace(/\s+/g, " ").substring(0, 200),
+            date: dateText,
+            url,
+            img: img || "",
+          });
+        });
+        return results;
       });
 
-      return results;
-    });
+      console.log(`  [Debug] Nol ${items.length} items from ${targetUrl}, sample:`, items.slice(0, 3).map(t => ({
+        title: t.title.substring(0, 50),
+        dateSnippet: t.date.replace(/\s+/g, " ").substring(0, 80),
+      })));
 
-    console.log(`  [Debug] Interpark ${items.length} items, sample:`, items.slice(0, 5).map(t => ({
-      title: t.title.substring(0, 50),
-      dateSnippet: t.date.replace(/\s+/g, " ").substring(0, 80),
-      url: t.url,
-    })));
+      if (items.length === 0) {
+        await page.close();
+        continue;
+      }
 
-    const tickets: TicketInfo[] = items.map((item, i) => ({
-      id: `interpark-${i}`,
-      title: item.title,
-      date: item.date,
-      platform: "interpark" as const,
-      url: item.url,
-      imageUrl: item.img || undefined,
-    }));
+      const tickets: TicketInfo[] = items.map((item, i) => ({
+        id: `nol-${i}`,
+        title: item.title,
+        date: item.date,
+        platform: "nol" as const,
+        url: item.url,
+        imageUrl: item.img || undefined,
+      }));
 
-    const result = postProcess(tickets, "interpark");
-    console.log(`[인터파크] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
-    return result;
-  } catch (e) {
-    console.warn("  [인터파크] error:", (e as Error).message);
-    return [];
-  } finally {
-    await page.close();
+      const result = postProcess(tickets, "nol");
+      console.log(`[놀티켓] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
+      await page.close();
+      return result;
+    } catch (e) {
+      console.warn(`  [놀티켓] ${targetUrl} error:`, (e as Error).message);
+      await page.close();
+    }
   }
+
+  console.log(`[놀티켓] 0개 추출`);
+  return [];
 }
 
 // ─── 티켓링크 ───────────────────────────────────────────
@@ -514,12 +518,12 @@ async function main() {
     const results = await Promise.allSettled([
       scrapeMelon(browser),
       scrapeYes24(browser),
-      scrapeInterpark(browser),
+      scrapeNol(browser),
       scrapeTicketlink(browser),
     ]);
 
     const allTickets: TicketInfo[] = [];
-    const platformNames = ["멜론티켓", "Yes24", "인터파크", "티켓링크"];
+    const platformNames = ["멜론티켓", "Yes24", "놀티켓", "티켓링크"];
 
     results.forEach((result, i) => {
       if (result.status === "fulfilled") {

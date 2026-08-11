@@ -14,7 +14,7 @@ export function Calendar() {
   const [empty, setEmpty] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<Platform>>(
-    new Set(["melon", "yes24", "interpark", "ticketlink"])
+    new Set(["melon", "yes24", "nol", "ticketlink"])
   );
 
   const allTicketsRef = useRef<TicketInfo[]>([]);
@@ -314,7 +314,7 @@ export function Calendar() {
         {empty ? (
           <span>* 스크래핑 데이터가 아직 없습니다. GitHub Actions 배포 후 데이터가 표시됩니다.</span>
         ) : (
-          <span>* 멜론티켓, Yes24, 인터파크, 티켓링크에서 수집된 데이터입니다.</span>
+          <span>* 멜론티켓, Yes24, 놀티켓, 티켓링크에서 수집된 데이터입니다.</span>
         )}
         {lastUpdated && (
           <span>
