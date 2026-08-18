@@ -428,17 +428,8 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
 
           if (!titleField || String(titleField).length < 2) continue;
 
-          let dateStr = "";
-          if (dateField) {
-            const d = String(dateField);
-            const parsed = parseKoreanDate(d);
-            dateStr = parsed.length > 0 ? parsed[0] : d;
-          }
-          if (!dateStr && endDateField) {
-            const d = String(endDateField);
-            const parsed = parseKoreanDate(d);
-            dateStr = parsed.length > 0 ? parsed[0] : "";
-          }
+          let dateStr = fieldToDateStr(dateField);
+          if (!dateStr) dateStr = fieldToDateStr(endDateField);
 
           let url = targetUrl;
           if (idField) {
@@ -520,6 +511,20 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     await page.close();
     return [];
   }
+}
+
+// Ticketlink's productList/show API returns dates as raw epoch-millisecond numbers
+// (e.g. 1787929200000), not date strings — parseKoreanDate can't handle those, so
+// convert them directly before falling back to text parsing for other shapes.
+function fieldToDateStr(field: unknown): string {
+  if (field === null || field === undefined) return "";
+  if (typeof field === "number" || /^\d{13}$/.test(String(field))) {
+    const d = new Date(Number(field));
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+  }
+  const d = String(field);
+  const parsed = parseKoreanDate(d);
+  return parsed.length > 0 ? parsed[0] : d;
 }
 
 function findField(obj: Record<string, unknown>, candidates: string[]): unknown {
