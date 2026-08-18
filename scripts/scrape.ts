@@ -187,7 +187,13 @@ async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
   ];
 
   for (const targetUrl of candidateUrls) {
-    const page = await browser.newPage();
+    // A realistic desktop UA/viewport in case nolticket.com's connection-level hang
+    // is bot-fingerprint-based rather than a rendering timing issue.
+    const page = await browser.newPage({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      viewport: { width: 1920, height: 1080 },
+    });
     page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
     // nolticket.com never reaches "domcontentloaded" within 30s on any observed run —
@@ -208,6 +214,20 @@ async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
     try {
       await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
       console.log(`  [Debug] Nol trying: ${targetUrl}`);
+
+      // Diagnostic: even waitUntil:"commit" (fires on first response byte) has timed
+      // out on nolticket.com, meaning the connection itself may never be answered —
+      // a stronger symptom than a slow-rendering SPA. Probe with a bare HTTP request
+      // (separate from browser navigation) to see whether ANY response ever comes back.
+      if (targetUrl.includes("nolticket.com")) {
+        const probeStart = Date.now();
+        try {
+          const probeResp = await page.request.get(targetUrl, { timeout: 15000 });
+          console.log(`  [Debug] Nol raw HTTP probe: status=${probeResp.status()} in ${Date.now() - probeStart}ms`);
+        } catch (e) {
+          console.log(`  [Debug] Nol raw HTTP probe failed after ${Date.now() - probeStart}ms:`, (e as Error).message);
+        }
+      }
 
       try {
         await page.goto(targetUrl, { waitUntil: "commit", timeout: 20000 });
