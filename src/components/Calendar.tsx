@@ -28,7 +28,9 @@ export function Calendar() {
       setLoading(true);
       try {
         const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-        const res = await fetch(`${basePath}/tickets.json`);
+        // Cache-bust: GitHub Pages' CDN and browsers otherwise keep serving a stale
+        // copy of this static file indefinitely, freezing "마지막 업데이트" in place.
+        const res = await fetch(`${basePath}/tickets.json?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("No scraped data");
         const data = await res.json();
         if (!cancelled) {

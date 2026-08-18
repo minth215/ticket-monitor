@@ -377,12 +377,30 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
       }
     }
 
-    // The ranking/listing widget lazy-loads on scroll — nudge it into view regardless of
-    // whether we re-navigated above or were already on the right page.
-    await page.waitForTimeout(1500);
-    for (let i = 0; i < 4; i++) {
+    // Traffic sniffed while scrolling revealed the real listing endpoint the ranking
+    // widget lazy-loads: mapi/productList/show. Call it directly with the confirmed
+    // categoryId instead of simulating scroll and racing the async response parser —
+    // far faster and avoids the timing races that plagued the scroll-based approach.
+    const categoryIdMatch = targetUrl.match(/\/performance\/(\d+)/);
+    const categoryId = categoryIdMatch ? categoryIdMatch[1] : "14";
+    const listUrl = `https://mapi.ticketlink.co.kr/mapi/productList/show?page=1&categoryId=${categoryId}&locationCode=&categoryLevel=2`;
+    try {
+      const listResp = await page.request.get(listUrl, {
+        headers: { Referer: targetUrl, Accept: "application/json" },
+      });
+      const listData = await listResp.json();
+      console.log(`  [Debug] Ticketlink productList/show (status ${listResp.status()}) → ${JSON.stringify(listData).substring(0, 500)}`);
+      apiResponses.push({ url: listUrl, data: listData });
+    } catch (e) {
+      console.log(`  [Debug] Ticketlink productList/show call failed:`, (e as Error).message);
+    }
+
+    // Belt-and-suspenders: a short scroll in case the widget needs page-triggered
+    // lazy-load rather than the direct call (kept brief to protect the time budget).
+    await page.waitForTimeout(1000);
+    for (let i = 0; i < 2; i++) {
       await page.mouse.wheel(0, 1000).catch(() => {});
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1000);
     }
     console.log(`  [Debug] Ticketlink captured ${apiResponses.length} total JSON API responses after scroll`);
     for (const resp of apiResponses) {
