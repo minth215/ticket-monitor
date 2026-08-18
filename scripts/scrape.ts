@@ -190,22 +190,111 @@ async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
     const page = await browser.newPage();
     page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
+    // nolticket.com never reaches "domcontentloaded" within 30s on any observed run —
+    // same symptom Ticketlink had. Intercept JSON API responses as a parallel path and
+    // use "commit" (fires on first response bytes) instead of waiting for a load event
+    // that may never fire, so DOM scraping below actually gets a chance to run.
+    const apiResponses: { url: string; data: unknown }[] = [];
+    page.on("response", async (response) => {
+      const contentType = response.headers()["content-type"] || "";
+      if (contentType.includes("json") && response.status() === 200) {
+        try {
+          const data = await response.json();
+          apiResponses.push({ url: response.url(), data });
+        } catch { /* ignore parse errors */ }
+      }
+    });
+
     try {
       await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
       console.log(`  [Debug] Nol trying: ${targetUrl}`);
 
-      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      try {
+        await page.goto(targetUrl, { waitUntil: "commit", timeout: 20000 });
+      } catch (e) {
+        console.warn(`  [Debug] Nol ${targetUrl} goto failed:`, (e as Error).message);
+        await page.close();
+        continue;
+      }
       await page.waitForTimeout(8000);
       await page.evaluate(() => {
         const h = document.body?.scrollHeight || 0;
         if (h > 0) window.scrollTo(0, h / 2);
-      });
+      }).catch(() => {});
       await page.waitForTimeout(2000);
 
-      const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
-      console.log(`  [Debug] Nol ${targetUrl} bodyLen=${bodyLen}`);
+      const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
+      console.log(`  [Debug] Nol ${targetUrl} bodyLen=${bodyLen}, capturedJsonResponses=${apiResponses.length}`);
+      if (apiResponses.length > 0) {
+        const seen = new Set<string>();
+        for (const resp of apiResponses) {
+          if (seen.has(resp.url)) continue;
+          seen.add(resp.url);
+          console.log(`  [Debug] Nol API: ${resp.url.substring(0, 120)} → ${JSON.stringify(resp.data).substring(0, 300)}`);
+        }
+      }
+
+      // Try structured extraction from any captured JSON API responses first — same
+      // generic field-matching helpers used for Ticketlink's productList/show.
+      if (apiResponses.length > 0) {
+        const apiTickets: TicketInfo[] = [];
+        for (const resp of apiResponses) {
+          const candidates = findArraysInObject(resp.data);
+          for (const arr of candidates) {
+            for (const item of arr) {
+              if (typeof item !== "object" || !item) continue;
+              const obj = item as Record<string, unknown>;
+              const titleField = findField(obj, ["title", "name", "goodsName", "productName", "prodNm", "performanceName", "eventName"]);
+              if (!titleField || String(titleField).length < 2) continue;
+              const dateField = findField(obj, ["date", "startDate", "openDate", "playDate", "performanceStartDate", "showStartDate", "prdctFromDt"]);
+              const endDateField = findField(obj, ["endDate", "performanceEndDate", "showEndDate", "prdctToDt"]);
+              const idField = findField(obj, ["id", "goodsCode", "goodsSeq", "prodId", "productId", "performanceId"]);
+              const venueField = findField(obj, ["venue", "placeName", "hallName", "venueName", "venueNm", "placeNm"]);
+              const imgField = findField(obj, ["imageUrl", "imgUrl", "posterUrl", "thumbnail", "imgPath"]);
+
+              let dateStr = fieldToDateStr(dateField);
+              if (!dateStr) dateStr = fieldToDateStr(endDateField);
+
+              let itemUrl = targetUrl;
+              if (idField) itemUrl = `${new URL(targetUrl).origin}/goods/${idField}`;
+
+              let imgUrl: string | undefined;
+              if (imgField) {
+                const img = String(imgField);
+                imgUrl = img.startsWith("//")
+                  ? `https:${img}`
+                  : img.startsWith("http")
+                  ? img
+                  : img.startsWith("/")
+                  ? `${new URL(targetUrl).origin}${img}`
+                  : undefined;
+              }
+
+              apiTickets.push({
+                id: `nol-${apiTickets.length}`,
+                title: String(titleField).replace(/\s+/g, " ").substring(0, 200),
+                date: dateStr,
+                venue: venueField ? String(venueField) : undefined,
+                platform: "nol",
+                url: itemUrl,
+                imageUrl: imgUrl,
+              });
+            }
+          }
+        }
+        if (apiTickets.length > 0) {
+          const apiResult = postProcess(apiTickets, "nol");
+          console.log(`  [Debug] Nol API extraction: ${apiTickets.length} raw → ${apiResult.length} after postProcess`);
+          if (apiResult.length > 0) {
+            console.log(`[놀티켓] ${apiResult.length}개 추출 (API 인터셉트)`);
+            await page.close();
+            return apiResult;
+          }
+        }
+      }
+
       if (bodyLen < 200) {
-        console.log(`  [Debug] Nol skipping ${targetUrl} (too short)`);
+        console.log(`  [Debug] Nol skipping DOM extraction for ${targetUrl} (body too short)`);
         await page.close();
         continue;
       }
