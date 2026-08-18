@@ -387,28 +387,18 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
     try {
       const listResp = await page.request.get(listUrl, {
         headers: { Referer: targetUrl, Accept: "application/json" },
+        timeout: 10000,
       });
       const listData = await listResp.json();
-      console.log(`  [Debug] Ticketlink productList/show (status ${listResp.status()}) → ${JSON.stringify(listData).substring(0, 500)}`);
+      console.log(`  [Debug] Ticketlink productList/show (status ${listResp.status()}) → ${JSON.stringify(listData).substring(0, 1500)}`);
       apiResponses.push({ url: listUrl, data: listData });
     } catch (e) {
       console.log(`  [Debug] Ticketlink productList/show call failed:`, (e as Error).message);
     }
-
-    // Belt-and-suspenders: a short scroll in case the widget needs page-triggered
-    // lazy-load rather than the direct call (kept brief to protect the time budget).
-    await page.waitForTimeout(1000);
-    for (let i = 0; i < 2; i++) {
-      await page.mouse.wheel(0, 1000).catch(() => {});
-      await page.waitForTimeout(1000);
-    }
-    console.log(`  [Debug] Ticketlink captured ${apiResponses.length} total JSON API responses after scroll`);
-    for (const resp of apiResponses) {
-      if (seenUrls.has(resp.url)) continue;
-      seenUrls.add(resp.url);
-      const dataStr = JSON.stringify(resp.data).substring(0, 300);
-      console.log(`  [Debug] Ticketlink API (post-scroll): ${resp.url.substring(0, 100)} → ${dataStr}`);
-    }
+    // Note: no scroll-simulation fallback here — page.mouse.wheel() was observed to hang
+    // for 100+ seconds on this SPA (likely starved by its own background polling loop),
+    // which blew the script's internal watchdog and left tickets.json unwritten. The
+    // direct API call above is sufficient and far more reliable.
 
     // Look for concert listing data in API responses
     const tickets: TicketInfo[] = [];
@@ -424,11 +414,17 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
 
           // Look for title-like and date-like fields
           const titleField = findField(obj, ["title", "name", "productName", "performanceName", "eventName", "prdctNm"]);
-          const dateField = findField(obj, ["date", "startDate", "openDate", "fromDate", "playDate", "strtDt", "prdctFromDt"]);
-          const endDateField = findField(obj, ["endDate", "toDate", "endDt", "prdctToDt"]);
+          const dateField = findField(obj, [
+            "date", "startDate", "openDate", "fromDate", "playDate", "strtDt", "prdctFromDt",
+            "minPlayDate", "playStartDate", "showStartDate", "salesStartDate",
+          ]);
+          const endDateField = findField(obj, [
+            "endDate", "toDate", "endDt", "prdctToDt",
+            "maxPlayDate", "playEndDate", "showEndDate", "salesEndDate",
+          ]);
           const idField = findField(obj, ["id", "productId", "performanceId", "prdctId"]);
-          const venueField = findField(obj, ["venue", "placeName", "hallName", "venueNm", "placeNm"]);
-          const imgField = findField(obj, ["imageUrl", "imgUrl", "posterUrl", "thumbnail", "imgPath"]);
+          const venueField = findField(obj, ["venue", "placeName", "hallName", "venueNm", "placeNm", "locationName"]);
+          const imgField = findField(obj, ["imageUrl", "imgUrl", "posterUrl", "thumbnail", "imgPath", "productImagePath"]);
 
           if (!titleField || String(titleField).length < 2) continue;
 
@@ -452,7 +448,13 @@ async function scrapeTicketlinkPage(browser: Browser, targetUrl: string): Promis
           let imgUrl: string | undefined;
           if (imgField) {
             const img = String(imgField);
-            imgUrl = img.startsWith("http") ? img : img.startsWith("/") ? `https://www.ticketlink.co.kr${img}` : undefined;
+            imgUrl = img.startsWith("//")
+              ? `https:${img}`
+              : img.startsWith("http")
+              ? img
+              : img.startsWith("/")
+              ? `https://www.ticketlink.co.kr${img}`
+              : undefined;
           }
 
           tickets.push({
