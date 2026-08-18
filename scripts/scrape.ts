@@ -215,22 +215,14 @@ async function scrapeNol(browser: Browser): Promise<TicketInfo[]> {
       await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
       console.log(`  [Debug] Nol trying: ${targetUrl}`);
 
-      // Diagnostic: even waitUntil:"commit" (fires on first response byte) has timed
-      // out on nolticket.com, meaning the connection itself may never be answered —
-      // a stronger symptom than a slow-rendering SPA. Probe with a bare HTTP request
-      // (separate from browser navigation) to see whether ANY response ever comes back.
-      if (targetUrl.includes("nolticket.com")) {
-        const probeStart = Date.now();
-        try {
-          const probeResp = await page.request.get(targetUrl, { timeout: 15000 });
-          console.log(`  [Debug] Nol raw HTTP probe: status=${probeResp.status()} in ${Date.now() - probeStart}ms`);
-        } catch (e) {
-          console.log(`  [Debug] Nol raw HTTP probe failed after ${Date.now() - probeStart}ms:`, (e as Error).message);
-        }
-      }
-
+      // Confirmed via a bare HTTP probe (separate from browser navigation) that
+      // nolticket.com never answers requests from this network at all — not a
+      // rendering-timing issue, but a connection-level block (likely datacenter/cloud
+      // IP ranges are filtered upstream of the app). Not fixable from here, so don't
+      // waste time waiting the full timeout on every scheduled run — fail fast and
+      // fall through to the Interpark mirror below.
       try {
-        await page.goto(targetUrl, { waitUntil: "commit", timeout: 20000 });
+        await page.goto(targetUrl, { waitUntil: "commit", timeout: 10000 });
       } catch (e) {
         console.warn(`  [Debug] Nol ${targetUrl} goto failed:`, (e as Error).message);
         await page.close();
