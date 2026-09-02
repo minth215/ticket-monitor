@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-02T16:07:31.932Z",
+  "lastUpdated": "2026-09-02T16:46:29.995Z",
   "count": 118,
   "tickets": [
     {
@@ -29,7 +29,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-27",
+      "id": "yes24-26",
       "title": "HIPHOPPLAYA SHOW VOL.63",
       "date": "2026-09-04",
       "venue": "예스24 원더로크홀",
@@ -130,15 +130,15 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-0",
-      "title": "2026 성시경 with friends ［자,오늘은］",
+      "id": "nol-4",
+      "title": "너드커넥션 클럽 투어 ［파도의 고점］- 서울 FINAL",
       "date": "2026-09-05",
       "platform": "nol",
-      "url": "https://tickets.interpark.com/goods/26010248",
-      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2607/260724104621_26010248.gif"
+      "url": "https://tickets.interpark.com/goods/26011369",
+      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2609/260901043432_26011369.gif"
     },
     {
-      "id": "nol-3",
+      "id": "nol-7",
       "title": "더 스카웃:다시 태어나는 별 STARS REBORN-서울",
       "date": "2026-09-05",
       "platform": "nol",
@@ -146,12 +146,12 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260831102723_26008726.gif"
     },
     {
-      "id": "nol-6",
-      "title": "너드커넥션 클럽 투어 ［파도의 고점］- 서울 FINAL",
+      "id": "nol-9",
+      "title": "2026 성시경 with friends ［자,오늘은］",
       "date": "2026-09-05",
       "platform": "nol",
-      "url": "https://tickets.interpark.com/goods/26011369",
-      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2609/260901043432_26011369.gif"
+      "url": "https://tickets.interpark.com/goods/26010248",
+      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2607/260724104621_26010248.gif"
     },
     {
       "id": "ticketlink-22",
@@ -230,7 +230,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-43",
+      "id": "yes24-44",
       "title": "테라와 함께하는 2026 이슬라이브 페스티벌",
       "date": "2026-09-12",
       "venue": "송도달빛축제공원",
@@ -246,7 +246,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-4",
+      "id": "nol-1",
       "title": "2026 PLAVE World Tour ［KEEP IT MANIC］ in Incheon",
       "date": "2026-09-12",
       "platform": "nol",
@@ -279,7 +279,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-37",
+      "id": "yes24-38",
       "title": "김승주 클럽투어 VC//VRS : 서울",
       "date": "2026-09-13",
       "venue": "예스24 원더로크홀",
@@ -287,7 +287,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-28",
+      "id": "yes24-30",
       "title": "2026-27 TAEMIN WORLD TOUR 〈LiMiNaL〉 in SEOUL",
       "date": "2026-09-18",
       "venue": "잠실실내체육관",
@@ -320,7 +320,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-21",
+      "id": "yes24-20",
       "title": "[청주] 2025-26 김창옥 토크콘서트 시즌5",
       "date": "2026-09-20",
       "venue": "청주 예술의전당 대공연장",
@@ -344,7 +344,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-8",
+      "id": "nol-2",
       "title": "2026 Redoor 단독콘서트",
       "date": "2026-09-26",
       "platform": "nol",
@@ -352,7 +352,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260828083937_26012498.gif"
     },
     {
-      "id": "nol-9",
+      "id": "nol-3",
       "title": "Silica Gel Asia Tour 〈Syn.THE.Size: Ballad of You〉 in Seoul",
       "date": "2026-09-26",
       "platform": "nol",
@@ -360,7 +360,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2606/260605013357_26007703.gif"
     },
     {
-      "id": "yes24-22",
+      "id": "yes24-23",
       "title": "[제주] 2026 김장훈 전국투어 콘서트 : 원맨쇼",
       "date": "2026-09-27",
       "venue": "제주아트센터 대극장",
@@ -401,7 +401,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-38",
+      "id": "yes24-37",
       "title": "＂IDOL1ST KENTY＂ ASIA TOUR 2026 in SEOUL",
       "date": "2026-10-03",
       "venue": "올림픽공원 內 올림픽홀",
@@ -409,7 +409,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-44",
+      "id": "yes24-45",
       "title": "[전주] 2026 신기루 토크콘서트 [노콘쇼]",
       "date": "2026-10-03",
       "venue": "전북대학교 삼성문화회관",
@@ -434,7 +434,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_7/fall_pst0826.jpg"
     },
     {
-      "id": "yes24-20",
+      "id": "yes24-21",
       "title": "[고양] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-04",
       "venue": "킨텍스 제2전시장 10홀",
@@ -483,7 +483,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-14",
+      "id": "yes24-13",
       "title": "제23회 자라섬재즈페스티벌",
       "date": "2026-10-09",
       "venue": "경기도 가평군 자라섬",
@@ -508,7 +508,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-30",
+      "id": "yes24-28",
       "title": "[청주] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-10",
       "venue": "청주대학교 석우문화체육관",
@@ -566,7 +566,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-25",
+      "id": "yes24-27",
       "title": "[수원] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-17",
       "venue": "경희대학교 국제캠퍼스 선승관",
@@ -689,7 +689,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-7",
+      "id": "nol-0",
       "title": "늘 그래왔던 것처럼 앞으로도",
       "date": "2026-10-24",
       "platform": "nol",
@@ -789,7 +789,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-1",
+      "id": "nol-8",
       "title": "2026 KO1KEYZ 1ST FAN MEETING IN SEOUL",
       "date": "2026-11-07",
       "platform": "nol",
@@ -821,7 +821,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-13",
+      "id": "yes24-14",
       "title": "[광주] 2026 이승철 40주년 콘서트 [THE VOICE: LEE SEUNG CHUL]",
       "date": "2026-11-14",
       "venue": "광주여대 유니버시아드 체육관",
@@ -837,7 +837,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-26",
+      "id": "yes24-25",
       "title": "BLU-SWING “Across the Blue” in Seoul",
       "date": "2026-11-15",
       "venue": "홍대 롤링홀",
@@ -927,7 +927,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-2",
+      "id": "nol-6",
       "title": "슬로우다이브 내한공연",
       "date": "2026-12-08",
       "platform": "nol",
@@ -935,7 +935,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260828094354_26012276.gif"
     },
     {
-      "id": "yes24-23",
+      "id": "yes24-22",
       "title": "[인천] 2026 이승철 40주년 콘서트 [THE VOICE: LEE SEUNG CHUL]",
       "date": "2026-12-12",
       "venue": "INSPIRE ARENA(인스파이어 아레나)",
@@ -951,7 +951,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-45",
+      "id": "yes24-43",
       "title": "카와사키 타카야 내한공연 KAWASAKI TAKAYA LIVE IN SEOUL 2026",
       "date": "2026-12-20",
       "venue": "YES24 LIVE HALL",
