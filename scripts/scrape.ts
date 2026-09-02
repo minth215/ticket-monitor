@@ -136,6 +136,17 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
       return [];
     }
 
+    // Diagnostic: the stealth patch got real content rendering, but the link regex
+    // (prodId=/concert/\d+) matched nothing. Dump a sample of hrefs to find the
+    // actual product-link URL pattern this page uses.
+    const hrefSample = await page.evaluate(() => {
+      const hrefs = Array.from(document.querySelectorAll("a"))
+        .map((a) => a.getAttribute("href") || "")
+        .filter((h) => h && h !== "#" && !h.startsWith("javascript:"));
+      return [...new Set(hrefs)].slice(0, 40);
+    });
+    console.log(`  [Debug] Melon href sample (${hrefSample.length}):`, JSON.stringify(hrefSample));
+
     const items = await page.evaluate(() => {
       const results: { title: string; date: string; url: string; img: string }[] = [];
       const baseUrl = location.origin;
