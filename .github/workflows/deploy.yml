@@ -44,6 +44,15 @@ jobs:
       # was never invalidating its cache for same-SHA deployments, so the live site got
       # stuck serving whatever was cached from the first deployment of the last commit.
       # Committing the scraped data gives every run a genuinely new SHA to deploy under.
+      #
+      # Push to github.ref_name (whatever branch actually triggered this run), NOT a
+      # hardcoded "main" — the repo's default branch (what schedule/no-ref triggers check
+      # out) turned out to be claude/concert-ticket-scraper-eknnq7, not main. Hardcoding
+      # main caused every scheduled run to push against a branch it never checked out,
+      # diverging from main and getting rejected as a non-fast-forward once main moved
+      # ahead, which failed this whole step (and skipped build+deploy, breaking updates
+      # entirely — worse than the original staleness bug). Also made non-fatal so a
+      # future push conflict can't take down the deploy again.
       - name: Commit scraped data
         run: |
           git config user.name "github-actions[bot]"
@@ -51,7 +60,7 @@ jobs:
           git add public/tickets.json
           git diff --cached --quiet && exit 0
           git commit -m "chore: update scraped ticket data [skip ci]"
-          git push origin HEAD:main
+          git push origin HEAD:${{ github.ref_name }} || echo "::warning::Failed to push scraped-data commit; this run still deploys fresh data, just without a new commit for cache-busting."
 
       - run: npm run build
 
