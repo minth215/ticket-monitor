@@ -68,21 +68,58 @@ function parseKoreanDate(text: string): string[] {
   return unique.length > 0 ? [unique[0]] : [];
 }
 
+// Patches the most common headless-automation tells (navigator.webdriver, missing
+// plugins/chrome object, permissions.query quirks) before any page script runs.
+// Sites that soft-block based on these signals (rather than IP/network filtering)
+// may render normally once they don't detect automation.
+async function applyStealth(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    Object.defineProperty(navigator, "languages", { get: () => ["ko-KR", "ko", "en-US", "en"] });
+    Object.defineProperty(navigator, "plugins", {
+      get: () => [1, 2, 3, 4, 5].map(() => ({ name: "Chrome PDF Plugin" })),
+    });
+    (window as unknown as { chrome?: unknown }).chrome = { runtime: {} };
+    const originalQuery = window.navigator.permissions?.query;
+    if (originalQuery) {
+      window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
+        parameters.name === "notifications"
+          ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+          : originalQuery(parameters);
+    }
+  });
+}
+
 // ─── 멜론티켓 ───────────────────────────────────────────
 async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
   console.log("[멜론티켓] 스크래핑 시작...");
 
-  const page = await browser.newPage();
+  const page = await browser.newPage({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    viewport: { width: 1920, height: 1080 },
+    locale: "ko-KR",
+  });
   page.on("dialog", (dialog) => dialog.dismiss().catch(() => {}));
 
   try {
+    await applyStealth(page);
     await page.setExtraHTTPHeaders({ "Accept-Language": "ko-KR,ko;q=0.9" });
 
-    await page.goto(
+    const resp = await page.goto(
       "https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON",
       { waitUntil: "domcontentloaded", timeout: 30000 }
     );
-    await page.waitForTimeout(5000);
+    console.log(`  [Debug] Melon nav status=${resp?.status()}, finalUrl=${page.url()}`);
+    await page.waitForTimeout(3000);
+
+    // Human-like interaction in case content lazy-loads behind interaction signals
+    await page.mouse.move(200, 200);
+    await page.mouse.move(600, 400, { steps: 10 });
+    await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
+    await page.waitForTimeout(3000);
 
     const debug = await page.evaluate(() => ({
       liCount: document.querySelectorAll("li").length,
@@ -90,10 +127,84 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
       bodyLen: document.body?.innerText?.length || 0,
       bodySnippet: (document.body?.innerText || "").substring(0, 300),
       title: document.title,
+      webdriver: navigator.webdriver,
     }));
     console.log("  [Debug] Melon:", JSON.stringify(debug));
-    console.log(`[멜론티켓] 0개 (페이지가 비어있음 - headless 차단 추정)`);
-    return [];
+
+    if (debug.bodyLen < 200) {
+      console.log(`[멜론티켓] 0개 (페이지가 비어있음 - headless 차단 추정)`);
+      return [];
+    }
+
+    const items = await page.evaluate(() => {
+      const results: { title: string; date: string; url: string; img: string }[] = [];
+      const baseUrl = location.origin;
+      const links = Array.from(document.querySelectorAll("a")).filter((a) => {
+        const href = a.getAttribute("href") || "";
+        return /prodId=\d+/.test(href) || /\/concert\/\d+/.test(href);
+      });
+      const seen = new Set<string>();
+      links.filter((a) => {
+        const href = a.getAttribute("href") || "";
+        if (seen.has(href)) return false;
+        seen.add(href);
+        return true;
+      }).forEach((a) => {
+        const container = a.closest("[class*=item], [class*=card], [class*=list] > *, li") || a.parentElement;
+        const containerTextLen = container?.textContent?.length || 0;
+        const useContainer = container && containerTextLen < 500;
+        const imgEl = a.querySelector("img") || (useContainer ? container?.querySelector("img") : null);
+
+        let title: string | null = null;
+        const titleAttr = a.getAttribute("title")?.trim();
+        if (titleAttr && titleAttr.length > 2) title = titleAttr;
+        if (!title && imgEl) {
+          const alt = imgEl.getAttribute("alt")?.trim();
+          if (alt && alt.length > 2) title = alt;
+        }
+        if (!title) {
+          const linkText = a.textContent?.trim();
+          if (linkText && linkText.length > 2 && linkText.length < 200) title = linkText;
+        }
+        if (!title) return;
+
+        const href = a.getAttribute("href") || "";
+        const url = href.startsWith("http") ? href : `${baseUrl}${href}`;
+        const dateText = useContainer ? (container?.textContent || "").substring(0, 300) : "";
+        const img = imgEl?.getAttribute("src") || "";
+
+        results.push({
+          title: title.replace(/\s+/g, " ").substring(0, 200),
+          date: dateText,
+          url,
+          img: img || "",
+        });
+      });
+      return results;
+    });
+
+    console.log(`  [Debug] Melon ${items.length} items, sample:`, items.slice(0, 3).map(t => ({
+      title: t.title.substring(0, 50),
+      dateSnippet: t.date.replace(/\s+/g, " ").substring(0, 80),
+    })));
+
+    if (items.length === 0) {
+      console.log(`[멜론티켓] 0개 (링크 없음)`);
+      return [];
+    }
+
+    const tickets: TicketInfo[] = items.map((item, i) => ({
+      id: `melon-${i}`,
+      title: item.title,
+      date: item.date,
+      platform: "melon" as const,
+      url: item.url,
+      imageUrl: item.img || undefined,
+    }));
+
+    const result = postProcess(tickets, "melon");
+    console.log(`[멜론티켓] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
+    return result;
   } catch (e) {
     console.warn("  [멜론티켓] error:", (e as Error).message);
     return [];
@@ -770,6 +881,10 @@ async function main() {
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      // Melon serves a genuinely empty page (0 elements, empty title) to headless
+      // Chromium while still returning 200 — a soft bot-detection block, not a network
+      // block like Nol's. This flag hides the most common automation tell.
+      "--disable-blink-features=AutomationControlled",
     ],
   });
 
