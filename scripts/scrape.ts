@@ -91,9 +91,15 @@ async function applyStealth(page: Page): Promise<void> {
 }
 
 // ─── 멜론티켓 ───────────────────────────────────────────
-async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
-  console.log("[멜론티켓] 스크래핑 시작...");
-
+// Melon's block is soft and inconsistent between attempts (observed: 200+real-content
+// on one run, 423 Locked+empty on the very next run with identical code) rather than a
+// deterministic pass/fail. A single attempt is therefore a coin flip; retrying with a
+// fresh page/context (new attempt = new TLS/session fingerprint) a few times inside one
+// run substantially raises the odds of landing on a content-present render.
+async function scrapeMelonAttempt(
+  browser: Browser,
+  attempt: number
+): Promise<{ ok: boolean; tickets: TicketInfo[] }> {
   const page = await browser.newPage({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -108,9 +114,11 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
 
     const resp = await page.goto(
       "https://ticket.melon.com/concert/index.htm?genreType=GENRE_CON",
-      { waitUntil: "domcontentloaded", timeout: 30000 }
+      { waitUntil: "domcontentloaded", timeout: 20000 }
     );
-    console.log(`  [Debug] Melon nav status=${resp?.status()}, finalUrl=${page.url()}`);
+    console.log(
+      `  [Debug] Melon attempt ${attempt} nav status=${resp?.status()}, finalUrl=${page.url()}`
+    );
     await page.waitForTimeout(3000);
 
     // Human-like interaction in case content lazy-loads behind interaction signals
@@ -129,16 +137,13 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
       title: document.title,
       webdriver: navigator.webdriver,
     }));
-    console.log("  [Debug] Melon:", JSON.stringify(debug));
+    console.log(`  [Debug] Melon attempt ${attempt}:`, JSON.stringify(debug));
 
     if (debug.bodyLen < 200) {
-      console.log(`[멜론티켓] 0개 (페이지가 비어있음 - headless 차단 추정)`);
-      return [];
+      return { ok: false, tickets: [] };
     }
 
-    // Diagnostic: the stealth patch got real content rendering, but the link regex
-    // (prodId=/concert/\d+) matched nothing. Dump a sample of hrefs to find the
-    // actual product-link URL pattern this page uses.
+    // Diagnostic: dump a sample of hrefs to confirm/refine the product-link URL pattern.
     const hrefSample = await page.evaluate(() => {
       const hrefs = Array.from(document.querySelectorAll("a"))
         .map((a) => a.getAttribute("href") || "")
@@ -200,8 +205,8 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
     })));
 
     if (items.length === 0) {
-      console.log(`[멜론티켓] 0개 (링크 없음)`);
-      return [];
+      console.log(`  [Debug] Melon attempt ${attempt}: content present but link regex matched 0 items`);
+      return { ok: false, tickets: [] };
     }
 
     const tickets: TicketInfo[] = items.map((item, i) => ({
@@ -214,14 +219,34 @@ async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
     }));
 
     const result = postProcess(tickets, "melon");
-    console.log(`[멜론티켓] ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
-    return result;
+    console.log(`[멜론티켓] 시도 ${attempt}: ${tickets.length}개 추출 → ${result.length}개 (날짜 파싱 후)`);
+    return { ok: true, tickets: result };
   } catch (e) {
-    console.warn("  [멜론티켓] error:", (e as Error).message);
-    return [];
+    console.warn(`  [멜론티켓] attempt ${attempt} error:`, (e as Error).message);
+    return { ok: false, tickets: [] };
   } finally {
     await page.close();
   }
+}
+
+async function scrapeMelon(browser: Browser): Promise<TicketInfo[]> {
+  console.log("[멜론티켓] 스크래핑 시작...");
+  const MAX_ATTEMPTS = 4;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const { ok, tickets } = await scrapeMelonAttempt(browser, attempt);
+    if (ok && tickets.length > 0) {
+      return tickets;
+    }
+    if (attempt < MAX_ATTEMPTS) {
+      // Small delay before retrying with a fresh page/session in case the block is
+      // rate-limit-shaped rather than permanent.
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  console.log(`[멜론티켓] 0개 (${MAX_ATTEMPTS}회 시도 모두 차단/빈 페이지 - headless 차단 추정)`);
+  return [];
 }
 
 // ─── Yes24 ──────────────────────────────────────────────
