@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-03T10:49:24.467Z",
+  "lastUpdated": "2026-09-03T15:57:29.033Z",
   "count": 121,
   "tickets": [
     {
@@ -21,7 +21,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_7/THE_YISABEL_pst_08251424.jpg"
     },
     {
-      "id": "yes24-20",
+      "id": "yes24-25",
       "title": "제1300회 서초금요음악회 [한여름 밤의 바로크 Festa]",
       "date": "2026-09-04",
       "venue": "서초문화예술회관 아트홀",
@@ -29,7 +29,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-27",
+      "id": "yes24-28",
       "title": "HIPHOPPLAYA SHOW VOL.63",
       "date": "2026-09-04",
       "venue": "예스24 원더로크홀",
@@ -64,7 +64,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_10/main0814.jpg"
     },
     {
-      "id": "yes24-28",
+      "id": "yes24-27",
       "title": "[부산] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-09-05",
       "venue": "KBS부산홀",
@@ -73,6 +73,14 @@
     },
     {
       "id": "yes24-31",
+      "title": "mu:stage 2026",
+      "date": "2026-09-05",
+      "venue": "광운대학교 동해문화예술관 대극장",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "yes24-32",
       "title": "[부산] 스테이지 네임 정승환, 김필, 홍이삭 (Stage Name Jung Seung Hwan, Kim Feel, Hong Isaac)",
       "date": "2026-09-05",
       "venue": "벡스코 오디토리움",
@@ -81,22 +89,6 @@
     },
     {
       "id": "yes24-33",
-      "title": "[성남] 2026 장윤정 라이브 콘서트 〈THE MASTER〉",
-      "date": "2026-09-05",
-      "venue": "성남아트센터 오페라하우스",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-35",
-      "title": "mu:stage 2026",
-      "date": "2026-09-05",
-      "venue": "광운대학교 동해문화예술관 대극장",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-37",
       "title": "사운드 플래닛 페스티벌 2026",
       "date": "2026-09-05",
       "venue": "Paradise City (파라다이스시티)",
@@ -104,7 +96,15 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-72",
+      "id": "yes24-38",
+      "title": "[성남] 2026 장윤정 라이브 콘서트 〈THE MASTER〉",
+      "date": "2026-09-05",
+      "venue": "성남아트센터 오페라하우스",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "yes24-71",
       "title": "[원주] 2026 김경호 전국투어 콘서트 : 발라드를 위한 時",
       "date": "2026-09-05",
       "venue": "원주시청 백운아트홀",
@@ -112,7 +112,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-2",
+      "id": "nol-0",
       "title": "더 스카웃:다시 태어나는 별 STARS REBORN-서울",
       "date": "2026-09-05",
       "platform": "nol",
@@ -120,7 +120,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260831102723_26008726.gif"
     },
     {
-      "id": "nol-10",
+      "id": "nol-6",
       "title": "2026 성시경 with friends ［자,오늘은］",
       "date": "2026-09-05",
       "platform": "nol",
@@ -137,7 +137,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_10/dj_pst_0703.jpg"
     },
     {
-      "id": "yes24-61",
+      "id": "yes24-60",
       "title": "[부산] THE GREATEST: 전율 소향 X 김기태",
       "date": "2026-09-06",
       "venue": "부산시민회관 대극장",
@@ -145,7 +145,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-74",
+      "id": "yes24-73",
       "title": "[원주] 2026 김종서 전국투어 콘서트 : 모두의 김종서",
       "date": "2026-09-06",
       "venue": "원주시청 백운아트홀",
@@ -153,10 +153,18 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-76",
+      "id": "yes24-75",
       "title": "[원주] 조항조 전국투어 콘서트：생각",
       "date": "2026-09-06",
       "venue": "원주시청 백운아트홀",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "yes24-39",
+      "title": "박구용의 철학 강연 〈박구용의 술〉",
+      "date": "2026-09-10",
+      "venue": "팟빵홀",
       "platform": "yes24",
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
@@ -196,7 +204,15 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_3/nir_poster_0820_1655.png"
     },
     {
-      "id": "yes24-45",
+      "id": "yes24-42",
+      "title": "[대구] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
+      "date": "2026-09-12",
+      "venue": "대구 엑스코 5층 컨벤션홀",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "yes24-46",
       "title": "테라와 함께하는 2026 이슬라이브 페스티벌",
       "date": "2026-09-12",
       "venue": "송도달빛축제공원",
@@ -212,15 +228,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-57",
-      "title": "[대구] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
-      "date": "2026-09-12",
-      "venue": "대구 엑스코 5층 컨벤션홀",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "nol-7",
+      "id": "nol-4",
       "title": "2026 PLAVE World Tour ［KEEP IT MANIC］ in Incheon",
       "date": "2026-09-12",
       "platform": "nol",
@@ -237,7 +245,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_5/main_0703.jpg"
     },
     {
-      "id": "yes24-18",
+      "id": "yes24-17",
       "title": "야마다 료스케 내한공연 (Ryosuke Yamada ASIA TOUR 2026 Red.Y in Seoul)",
       "date": "2026-09-13",
       "venue": "장충체육관",
@@ -245,7 +253,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-39",
+      "id": "yes24-40",
       "title": "김승주 클럽투어 VC//VRS : 서울",
       "date": "2026-09-13",
       "venue": "예스24 원더로크홀",
@@ -253,7 +261,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-36",
+      "id": "yes24-34",
       "title": "2026-27 TAEMIN WORLD TOUR 〈LiMiNaL〉 in SEOUL",
       "date": "2026-09-18",
       "venue": "잠실실내체육관",
@@ -287,7 +295,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-66",
+      "id": "yes24-65",
       "title": "[세종] 조항조 전국투어 콘서트：생각",
       "date": "2026-09-19",
       "venue": "세종문화예술회관 대공연장",
@@ -295,7 +303,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-21",
+      "id": "yes24-20",
       "title": "[청주] 2025-26 김창옥 토크콘서트 시즌5",
       "date": "2026-09-20",
       "venue": "청주 예술의전당 대공연장",
@@ -303,7 +311,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-32",
+      "id": "yes24-36",
       "title": "[서울] 2026 신기루 토크콘서트 [노콘쇼]",
       "date": "2026-09-20",
       "venue": "세종대학교 대양홀",
@@ -319,15 +327,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-4",
-      "title": "2026 Redoor 단독콘서트",
-      "date": "2026-09-26",
-      "platform": "nol",
-      "url": "https://tickets.interpark.com/goods/26012498",
-      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260828083937_26012498.gif"
-    },
-    {
-      "id": "nol-11",
+      "id": "nol-2",
       "title": "Silica Gel Asia Tour 〈Syn.THE.Size: Ballad of You〉 in Seoul",
       "date": "2026-09-26",
       "platform": "nol",
@@ -335,7 +335,15 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2606/260605013357_26007703.gif"
     },
     {
-      "id": "yes24-25",
+      "id": "nol-11",
+      "title": "2026 Redoor 단독콘서트",
+      "date": "2026-09-26",
+      "platform": "nol",
+      "url": "https://tickets.interpark.com/goods/26012498",
+      "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2608/260828083937_26012498.gif"
+    },
+    {
+      "id": "yes24-22",
       "title": "[제주] 2026 김장훈 전국투어 콘서트 : 원맨쇼",
       "date": "2026-09-27",
       "venue": "제주아트센터 대극장",
@@ -343,18 +351,10 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-77",
+      "id": "yes24-76",
       "title": "[원주] 패션 워십 컨퍼런스 2026",
       "date": "2026-10-01",
       "venue": "충정교회",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-9",
-      "title": "2026 부산국제록페스티벌",
-      "date": "2026-10-02",
-      "venue": "부산 사상구 삼락생태공원",
       "platform": "yes24",
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
@@ -377,7 +377,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_7/uijeongbu_pst0714.jpg"
     },
     {
-      "id": "yes24-11",
+      "id": "yes24-12",
       "title": "XMF(Xnterstellar Music Festival) 2026",
       "date": "2026-10-03",
       "venue": "파라다이스시티 내 컬쳐파크",
@@ -385,7 +385,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-38",
+      "id": "yes24-37",
       "title": "＂IDOL1ST KENTY＂ ASIA TOUR 2026 in SEOUL",
       "date": "2026-10-03",
       "venue": "올림픽공원 內 올림픽홀",
@@ -393,7 +393,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-67",
+      "id": "yes24-66",
       "title": "[수원] 패션 워십 컨퍼런스 2026",
       "date": "2026-10-03",
       "venue": "시은소교회",
@@ -401,7 +401,15 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-5",
+      "id": "yes24-79",
+      "title": "[의정부] 2026 변진섭 전국투어 콘서트 : 변천사 시즌2.5 : 시간여행",
+      "date": "2026-10-03",
+      "venue": "의정부예술의전당 대극장",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "nol-7",
       "title": "2026 LEO MUSE FANMEETING ［TAKE 운－PLAY LEO］",
       "date": "2026-10-03",
       "platform": "nol",
@@ -409,7 +417,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2609/260902070752_26012326.gif"
     },
     {
-      "id": "nol-6",
+      "id": "nol-10",
       "title": "2026 산들 단독 콘서트 〈바람결〉",
       "date": "2026-10-03",
       "platform": "nol",
@@ -426,7 +434,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_7/fall_pst0826.jpg"
     },
     {
-      "id": "yes24-22",
+      "id": "yes24-19",
       "title": "[고양] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-04",
       "venue": "킨텍스 제2전시장 10홀",
@@ -434,18 +442,10 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-79",
+      "id": "yes24-78",
       "title": "[의정부] 2026 김경호 전국투어 콘서트 : 발라드를 위한 時",
       "date": "2026-10-04",
       "venue": "의정부예술의전당 대극장",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-16",
-      "title": "2026 데미소다 콘서트, DEMI-CON!",
-      "date": "2026-10-05",
-      "venue": "YES24 LIVE HALL",
       "platform": "yes24",
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
@@ -467,7 +467,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_9/main_720_890_0709.jpg"
     },
     {
-      "id": "yes24-8",
+      "id": "yes24-10",
       "title": "2026 AKMU CONCERT [ 소문의 낙원（Paradise of Rumors）]",
       "date": "2026-10-09",
       "venue": "KSPO DOME(올림픽체조경기장)",
@@ -475,7 +475,15 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-15",
+      "id": "yes24-11",
+      "title": "2026 POW CONCERT: COLOR ON IN SEOUL",
+      "date": "2026-10-09",
+      "venue": "예스24 원더로크홀",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "yes24-14",
       "title": "제23회 자라섬재즈페스티벌",
       "date": "2026-10-09",
       "venue": "경기도 가평군 자라섬",
@@ -483,7 +491,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-12",
+      "id": "nol-9",
       "title": "요우시 내한공연 (Yo-Sea Asia Tour 2026 - Minimum Band Set)",
       "date": "2026-10-09",
       "platform": "nol",
@@ -516,7 +524,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-40",
+      "id": "yes24-43",
       "title": "[서울] 2026 하루 첫 팬콘서트[오늘, 하루 : 처음 들려주는 이야기]",
       "date": "2026-10-10",
       "venue": "세종대학교 대양홀",
@@ -532,7 +540,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-0",
+      "id": "nol-3",
       "title": "OurR Concert ‘Utopia’",
       "date": "2026-10-11",
       "platform": "nol",
@@ -574,7 +582,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-29",
+      "id": "yes24-26",
       "title": "[수원] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-17",
       "venue": "경희대학교 국제캠퍼스 선승관",
@@ -582,15 +590,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-42",
-      "title": "[부산] 2026 하루 첫 팬콘서트[오늘, 하루 : 처음 들려주는 이야기]",
-      "date": "2026-10-17",
-      "venue": "벡스코 오디토리움",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-46",
+      "id": "yes24-41",
       "title": "[부산] 브로콜리너마저의 〈2026 전국 인디 교류 투어〉",
       "date": "2026-10-17",
       "venue": "KT&G 상상마당 부산",
@@ -598,7 +598,15 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-8",
+      "id": "yes24-44",
+      "title": "[부산] 2026 하루 첫 팬콘서트[오늘, 하루 : 처음 들려주는 이야기]",
+      "date": "2026-10-17",
+      "venue": "벡스코 오디토리움",
+      "platform": "yes24",
+      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
+    },
+    {
+      "id": "nol-1",
       "title": "윤민수 with Piano",
       "date": "2026-10-17",
       "platform": "nol",
@@ -632,7 +640,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-58",
+      "id": "yes24-57",
       "title": "[대구] THE GREATEST: 전율 소향 X 김기태",
       "date": "2026-10-18",
       "venue": "영남대학교 천마아트센터 그랜드홀",
@@ -640,7 +648,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-62",
+      "id": "yes24-61",
       "title": "[서울] 2026 김수희 전국투어 콘서트：우리 다시, 김수희",
       "date": "2026-10-18",
       "venue": "큐브컨벤션센터 CCC스테이지",
@@ -648,7 +656,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-63",
+      "id": "yes24-62",
       "title": "[서울] 2026 양수경 콘서트 : 인연",
       "date": "2026-10-18",
       "venue": "큐브컨벤션센터 CCC스테이지",
@@ -656,7 +664,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-65",
+      "id": "yes24-64",
       "title": "[세종] 브로콜리너마저의 〈2026 전국 인디 교류 투어〉",
       "date": "2026-10-18",
       "venue": "세종음악창작소 누리락",
@@ -673,7 +681,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_4/yun_pst0820.jpg"
     },
     {
-      "id": "yes24-34",
+      "id": "yes24-29",
       "title": "[춘천] 2026 진성 단독 토크콘서트 ＂진성쑈＂",
       "date": "2026-10-24",
       "venue": "춘천 강원대학교 백령아트센터(구.백령문화관)",
@@ -681,7 +689,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-43",
+      "id": "yes24-45",
       "title": "[부산] 박경림 토크콘서트 [인생급수]",
       "date": "2026-10-24",
       "venue": "부산 소향씨어터 우리은행홀",
@@ -705,7 +713,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-1",
+      "id": "nol-8",
       "title": "늘 그래왔던 것처럼 앞으로도",
       "date": "2026-10-24",
       "platform": "nol",
@@ -721,7 +729,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-64",
+      "id": "yes24-63",
       "title": "[서울] 브로콜리너마저의 〈2026 전국 인디 교류 투어〉",
       "date": "2026-10-25",
       "venue": "예스24 원더로크홀",
@@ -756,7 +764,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_8/BS_POSTER_0822.jpg"
     },
     {
-      "id": "yes24-12",
+      "id": "yes24-8",
       "title": "[전주] 김건모. 35TH ANNIVERSARY LIVE TOUR",
       "date": "2026-10-31",
       "venue": "한국소리문화의전당 야외공연장",
@@ -764,7 +772,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-19",
+      "id": "yes24-18",
       "title": "[인천] 2026 씨야 20주년 전국 투어 콘서트 : THE FAN",
       "date": "2026-10-31",
       "venue": "인천남동체육관",
@@ -772,7 +780,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-71",
+      "id": "yes24-70",
       "title": "[원주] [데뷔 60주년 기념공연] 2026 남진 전국투어 콘서트",
       "date": "2026-10-31",
       "venue": "원주 백운아트홀",
@@ -780,7 +788,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-75",
+      "id": "yes24-74",
       "title": "[원주] 2026 The 심수봉 SHOW",
       "date": "2026-10-31",
       "venue": "원주 백운아트홀",
@@ -788,7 +796,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-73",
+      "id": "yes24-72",
       "title": "[원주] 2026 김장훈 전국투어 콘서트 : 원맨쇼",
       "date": "2026-11-01",
       "venue": "밀양 아리랑아트센터 대공연장",
@@ -805,7 +813,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_9/main1220-1100.jpg"
     },
     {
-      "id": "yes24-17",
+      "id": "yes24-16",
       "title": "AKANE YONEZAWA “Black Pasta” TOUR in Seoul",
       "date": "2026-11-07",
       "venue": "예스24 원더로크홀",
@@ -813,7 +821,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-3",
+      "id": "nol-5",
       "title": "2026 KO1KEYZ 1ST FAN MEETING IN SEOUL",
       "date": "2026-11-07",
       "platform": "nol",
@@ -821,7 +829,7 @@
       "imageUrl": "https://ticketimage.interpark.com/TCMS3.0/GMain/Conc/2609/260901053447_26012046.gif"
     },
     {
-      "id": "yes24-59",
+      "id": "yes24-58",
       "title": "[밀양] 2026 김장훈 전국투어 콘서트 : 원맨쇼",
       "date": "2026-11-08",
       "venue": "밀양 아리랑아트센터 대공연장",
@@ -829,7 +837,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-70",
+      "id": "yes24-69",
       "title": "[용인] 주현미 데뷔 40주년 콘서트 〈The Queen〉",
       "date": "2026-11-08",
       "venue": "용인 포은아트홀",
@@ -837,7 +845,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-78",
+      "id": "yes24-77",
       "title": "[음성] [데뷔 60주년 기념공연] 2026 남진 전국투어 콘서트",
       "date": "2026-11-08",
       "venue": "음성문화예술회관 대공연장",
@@ -845,7 +853,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-14",
+      "id": "yes24-15",
       "title": "[광주] 2026 이승철 40주년 콘서트 [THE VOICE: LEE SEUNG CHUL]",
       "date": "2026-11-14",
       "venue": "광주여대 유니버시아드 체육관",
@@ -853,7 +861,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-68",
+      "id": "yes24-67",
       "title": "[여수] 2026 김장훈 전국투어 콘서트 : 원맨쇼",
       "date": "2026-11-14",
       "venue": "여수시민회관",
@@ -861,7 +869,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-26",
+      "id": "yes24-35",
       "title": "BLU-SWING “Across the Blue” in Seoul",
       "date": "2026-11-15",
       "venue": "홍대 롤링홀",
@@ -877,18 +885,10 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-69",
+      "id": "yes24-68",
       "title": "[여수] 2026 변진섭 전국투어 콘서트 : 변천사 시즌2.5 : 시간여행",
       "date": "2026-11-15",
       "venue": "여수시민회관",
-      "platform": "yes24",
-      "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
-    },
-    {
-      "id": "yes24-41",
-      "title": "SJF at the Theater 2026 - Christopher",
-      "date": "2026-11-19",
-      "venue": "세종문화회관 대극장",
       "platform": "yes24",
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
@@ -910,7 +910,7 @@
       "imageUrl": "https://image.toast.com/aaaaab/ticketlink/TKL_8/hg_p_0826(busan).jpg"
     },
     {
-      "id": "yes24-10",
+      "id": "yes24-9",
       "title": "[대전] 2026 이승철 40주년 콘서트 [THE VOICE: LEE SEUNG CHUL]",
       "date": "2026-11-22",
       "venue": "DCC 대전컨벤션센터 제2전시장",
@@ -951,7 +951,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "nol-9",
+      "id": "nol-12",
       "title": "슬로우다이브 내한공연",
       "date": "2026-12-08",
       "platform": "nol",
@@ -975,10 +975,10 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-44",
-      "title": "카와사키 타카야 내한공연 KAWASAKI TAKAYA LIVE IN SEOUL 2026",
+      "id": "yes24-21",
+      "title": "Rain Tree Concert 2026 in Seoul",
       "date": "2026-12-20",
-      "venue": "YES24 LIVE HALL",
+      "venue": "예스24 원더로크홀",
       "platform": "yes24",
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
@@ -991,7 +991,7 @@
       "url": "https://ticket.yes24.com/New/Genre/GenreList.aspx?genretype=1&genre=15456"
     },
     {
-      "id": "yes24-60",
+      "id": "yes24-59",
       "title": "[부산] 카피추 뮤직 토크 콘서트 : 천지창조",
       "date": "2026-12-25",
       "venue": "부산 영화의전당 하늘연극장",
